@@ -5,7 +5,7 @@ import scipy.integrate
 import torch
 import gpytorch
 import matplotlib.pyplot as plt
-import numpy as np
+from quadGP import ExactQuadGP
 
 
 # Define integrand function and randomly sample some initial points for parameters
@@ -20,8 +20,8 @@ def integrand(x, no_torch=False):
 
 n_init = 5
 domain = [-5, 5]
-x_sample = torch.linspace(domain[0], domain[1], n_init)
-y_sample = integrand(x_sample)
+x_sample = ExactQuadGP.get_init_points(n_init, 1, domain[0], domain[1]).reshape(-1)  # torch.linspace(domain[0], domain[1], n_init)
+y_sample = integrand(x_sample).reshape(-1)
 
 
 # Define GP prior for integrand
@@ -39,11 +39,11 @@ class GP(gpytorch.models.ExactGP):
 
 
 # Function for plotting GP "Sausage plot"
-def plot_gp(model, likelihood, x_sample):
+def plot_gp(model, x_sample):
     # Make predictions by feeding model through likelihood
     with torch.no_grad(), gpytorch.settings.fast_pred_var():
         test_x = torch.linspace(domain[0], domain[1], 100)
-        observed_pred = likelihood(model(test_x))
+        observed_pred = model.likelihood(model(test_x))
 
     with torch.no_grad():
         # Initialize plot
@@ -64,11 +64,11 @@ def plot_gp(model, likelihood, x_sample):
 
 
 # Acquisition function for finding next point to query, using max variance targeter
-def acquire_next_point(model, likelihood):
+def acquire_next_point(model):
     # Make predictions by feeding model through likelihood
     with torch.no_grad(), gpytorch.settings.fast_pred_var():
         test_x = torch.linspace(domain[0], domain[1], 100)
-        observed_pred = likelihood(model(test_x))
+        observed_pred = model.likelihood(model(test_x))
         lower, upper = observed_pred.confidence_region()
         uncertainty = upper - lower
 
@@ -78,28 +78,30 @@ def acquire_next_point(model, likelihood):
 
 # Define likelihood function, initialise model and manually define hyperparameters
 likelihood = gpytorch.likelihoods.GaussianLikelihood()
-model = GP(x_sample, y_sample, likelihood)
-model.covar_module.lengthscale = 0.5
-likelihood.noise = 0.0001
+model = ExactQuadGP(x_sample.reshape((-1,1)), y_sample)
+# model.covar_module.lengthscale = 0.5
+# likelihood.noise = 0.0001
 
 # Display model with this data
 # Get into evaluation (predictive posterior) mode
 model.eval()
 likelihood.eval()
-plot_gp(model, likelihood, x_sample)
+model.plot_gp(domain[0], domain[1])
+# plot_gp(model, x_sample)
 
 # Sequentially acquire new evaluation points
 n_samples = 10
 for i in range(n_samples):
-    x_sample = torch.cat((x_sample, acquire_next_point(model, likelihood).reshape(-1)))
+    x_sample = torch.cat((x_sample, acquire_next_point(model).reshape(-1)))
     model.set_train_data(x_sample, integrand(x_sample), strict=False)
     if not bool((i+1) % 5):
-        plot_gp(model, likelihood, x_sample)
+        plot_gp(model, x_sample)
 
 # Calculate approximate integral in form of quadrature rule
 with torch.no_grad():
     dx = 0.5
     x_test = torch.range(domain[0], domain[1], dx)
+    x_sample, indices = torch.sort(x_sample)
 
     KXX = torch.tensor([[model.covar_module.forward(x1, x2) for x1 in x_sample] for x2 in x_sample])
     inv_KXX = torch.inverse(KXX)
