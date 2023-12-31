@@ -1,5 +1,6 @@
 """
-Interface between rest of NAS/NES algorithm and Anthropic API search space
+Testing potential interface between rest of NAS/NES algorithm and Anthropic API search space
+This test has Claude set up a search space and sample code for models from it.
 """
 
 from anthropic import Anthropic, HUMAN_PROMPT, AI_PROMPT
@@ -52,7 +53,7 @@ class AnthropicSearchSpace(Anthropic):
         can sample a network from this space at those coordinates. You can assume the architecture is the only \
         thing that matters in this search space, and that the dataset and training will be up to me. You can also \
         assume typical hyperparameters for each network. Regardless of dataset, networks at different points in this \
-        search space should have expected output covariance roughly following the Matern kernel used in Gaussian \
+        search space should have expected output covariance roughly following the RBF kernel used in Gaussian \
         processes. Please describe your understanding of this latent space in detail so that you can consistently \
         and accurately sample from it later. {AI_PROMPT}"
 
