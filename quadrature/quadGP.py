@@ -101,7 +101,7 @@ class ExactQuadGP(gpytorch.models.ExactGP):
         >>> x = ExactQuadGP.get_init_points(10, 1, lbs, ubs)
         >>> y = torch.exp(-x**2)
         >>> quad_gp = ExactQuadGP(x, y)
-        >>> print(quad_gp.quad(lbs, ubs))
+        >>> print(quad_gp.numerical_quad(lbs, ubs))
         >>> print(f'Quadrature points: {quad_gp.x.reshape(-1)}, Weights: {quad_gp.quad_weights}')
         """
         if self.quad_calculated:

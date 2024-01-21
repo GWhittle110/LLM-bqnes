@@ -2,7 +2,7 @@
 import jax.numpy as jnp
 import jaxopt
 import matplotlib.pyplot as plt
-from scipy.stats import qmc
+from scipy.stats import qmc, norm
 import numpy as np
 import tinygp
 import scipy.integrate
@@ -39,9 +39,9 @@ class QuadGP:
             self.ndim = x_init.shape[1]
 
         if theta_init is None:
-            self.theta = {"log_scale": np.float64(0),
+            self.theta = {"log_scale": -1 * np.ones(self.ndim),
                           "log_amp": np.float64(0),
-                          "log_jitter": np.float64(0.01)}
+                          "log_jitter": np.float64(-5)}
         else:
             self.theta = theta_init
 
@@ -111,7 +111,7 @@ class QuadGP:
         >>> y = np.exp(-(x**2).sum(axis=1))
         >>> quad_gp = QuadGP(x, y)
         >>> quad_gp.plot_gp(lbs, ubs)
-        >>> x_next = quad_gp.acquire_next(np.ones(2))
+        >>> x_next = quad_gp.acquire_next(np.ones(1))
         >>> y_next = np.exp(-(x_next**2).sum())
         >>> print(f'Acquired sample: {x_next}, corresponding function evaluation: {y_next}')
         >>> quad_gp.add_data(x_next, y_next)
@@ -134,9 +134,51 @@ class QuadGP:
         next_x = minimizer.run(x_init).params
         return next_x
 
+    def numerical_quad(self, lbs: list, ubs: list):
+        """
+        Calculate integral and quadrature weights for used quadrature points using numerical integration. Deprecated
+        for RBF kernels, instead use quad.
+        :param lbs: lower bounds for integration
+        :param ubs: upper bounds for integration
+        :return: integral result
+        Example, 1d:
+        >>> lbs = -5
+        >>> ubs = 5
+        >>> x = QuadGP.get_init_points(10, 1, lbs, ubs)
+        >>> y = np.exp(-(x**2).sum(axis=1))
+        >>> quad_gp = QuadGP(x, y)
+        >>> quad_gp.plot_gp(lbs, ubs)
+        >>> print(quad_gp.numerical_quad(lbs, ubs))
+        >>> print(f'Quadrature points: {quad_gp.x.reshape(-1)}, Weights: {quad_gp.quad_weights}')
+        Example, 2d
+        >>> lbs = [-5, -5]
+        >>> ubs = [5, 5]
+        >>> x = QuadGP.get_init_points(10, 2, lbs, ubs)
+        >>> y = np.exp(-(x**2).sum(axis=1))
+        >>> quad_gp = QuadGP(x, y)
+        >>> print(quad_gp.numerical_quad(lbs, ubs))
+        >>> print(f'Quadrature points: {quad_gp.x}, Weights: {quad_gp.quad_weights}')
+        """
+        if self.quad_calculated:
+            return self.quad_weights @ self.y
+        else:
+            surrogate = self.build_gp()
+            if self.ndim == 1:
+                KxX = jnp.array([scipy.integrate.quad(lambda x: surrogate.kernel(np.array(x).reshape((1, -1)),
+                                                                                 X.reshape((1, -1))),
+                                                      lbs, ubs)[0] for X in self.x])
+            else:
+                KxX = jnp.array([scipy.integrate.nquad(lambda *x: surrogate.kernel(np.array(x).reshape((1, -1)),
+                                                                                   X.reshape((1, -1))),
+                                                       [*zip(lbs, ubs)])[0] for X in self.x])
+            KXX = surrogate.kernel(self.x, self.x)
+            self.quad_weights = jnp.linalg.solve(KXX, KxX)
+            self.quad_calculated = True
+            return self.quad_weights @ self.y
+
     def quad(self, lbs: list, ubs: list):
         """
-        Calculate integral and quadrature weights for used quadrature points
+        Calculate integral and quadrature weights for used quadrature points using exactly for RBF kernels.
         :param lbs: lower bounds for integration
         :param ubs: upper bounds for integration
         :return: integral result
@@ -157,19 +199,24 @@ class QuadGP:
         >>> quad_gp = QuadGP(x, y)
         >>> print(quad_gp.quad(lbs, ubs))
         >>> print(f'Quadrature points: {quad_gp.x}, Weights: {quad_gp.quad_weights}')
-        """
+1        """
         if self.quad_calculated:
             return self.quad_weights @ self.y
         else:
             surrogate = self.build_gp()
+            sig = jnp.exp(self.theta["log_scale"])
             if self.ndim == 1:
-                KxX = jnp.array([scipy.integrate.quad(lambda x: surrogate.kernel(np.array(x).reshape((1, -1)),
-                                                                                 X.reshape((1, -1))),
-                                                      lbs, ubs)[0] for X in self.x])
+                if isinstance(lbs, list):
+                    lbs = lbs[0]
+                if isinstance(ubs, list):
+                    ubs = ubs[0]
+                KxX = (jnp.exp(self.theta["log_amp"]) * sig * jnp.sqrt(2 * jnp.pi) *
+                       jnp.array([norm.cdf((ubs - x) / sig)-norm.cdf((lbs - x) / sig) for x in self.x]).reshape(-1))
             else:
-                KxX = jnp.array([scipy.integrate.nquad(lambda *x: surrogate.kernel(np.array(x).reshape((1, -1)),
-                                                                                   X.reshape((1, -1))),
-                                                       [*zip(lbs, ubs)])[0] for X in self.x])
+                KxX = (jnp.exp(self.theta["log_amp"]) * jnp.sqrt(2 * jnp.pi)**self.ndim *
+                       jnp.array([jnp.prod(jnp.array([sig[i]*norm.cdf((ub-x[i])/sig[i])-norm.cdf((lb-x[i])/sig[i])
+                                                      for i, (ub, lb) in enumerate(zip(ubs, lbs))]).reshape(-1))
+                                  for x in self.x]).reshape(-1))
             KXX = surrogate.kernel(self.x, self.x)
             self.quad_weights = jnp.linalg.solve(KXX, KxX)
             self.quad_calculated = True

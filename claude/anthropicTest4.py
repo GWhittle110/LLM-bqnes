@@ -11,6 +11,8 @@ from typing import Iterable, Union, Tuple
 import numpy as np
 import tinygp
 import os
+import re
+import matplotlib.pyplot as plt
 
 
 class AnthropicSearchSpace(Anthropic):
@@ -179,9 +181,13 @@ class AnthropicSearchSpace(Anthropic):
                    your tasks detailed above. {AI_PROMPT}"
 
         complete_prompt = "".join((self.starter_prompt, prompt))
-        response = self.completions.create(model=self.model, max_tokens_to_sample=self.max_tokens,
+        completion = self.completions.create(model=self.model, max_tokens_to_sample=self.max_tokens,
                                            prompt=complete_prompt)
+        response = completion.completion
         print(response)
+        coord_strings = re.findall('<coordinate index=[0-9]+>(.+?)</coordinate>', response, flags=re.DOTALL)
+        coords = np.array([[float(x) for x in re.findall('[0-9|.]+', coord)] for coord in coord_strings])
+        return coords
 
 
 if __name__ == "__main__":
@@ -191,5 +197,10 @@ if __name__ == "__main__":
     task = "image classification"
     dataset_info = "MNIST dataset, 60000 training samples, 10 classes"
     search_space = AnthropicSearchSpace(use_default_examples=False)
-    search_space.construct_search_space(source_code, task, dataset_info)
+    coords = search_space.construct_search_space(source_code, task, dataset_info)
+    print(coords)
+    for X, Y in zip(coords.T[:-1], coords.T[1:]):
+        plt.scatter(X, Y)
+        plt.show()
+
 
