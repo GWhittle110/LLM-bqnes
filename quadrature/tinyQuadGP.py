@@ -202,22 +202,64 @@ class QuadGP:
         :param ubs: upper bounds for integration
         :return: integral result
         Example, 1d:
-        >>> lbs = -5
-        >>> ubs = 5
-        >>> x = QuadGP.get_init_points(10, 1, lbs, ubs)
+        >>> lbs = -1
+        >>> ubs = 1
+        >>> x = QuadGP.get_init_points(5, 1, lbs, ubs)
         >>> y = np.exp(-(x**2).sum(axis=1))
-        >>> quad_gp = QuadGP(x, y)
+        >>> quad_gp = QuadGP(x, y, mean='avg')
         >>> quad_gp.plot_gp(lbs, ubs)
-        >>> print(quad_gp.numerical_quad(lbs, ubs))
+        >>> coords = np.linspace(lbs, ubs, 100).reshape(-1, 1)
+        >>> val = quad_gp.numerical_quad(lbs, ubs)
+        >>> print(f'Integral value: {val}')
         >>> print(f'Quadrature points: {quad_gp.x.reshape(-1)}, Weights: {quad_gp.quad_weights}')
+        Example, 1d with repeated measurements and noise:
+        >>> lbs = -1
+        >>> ubs = 1
+        >>> x = QuadGP.get_init_points(5, 1, lbs, ubs)
+        >>> x = np.vstack((x, x))
+        >>> y = np.exp(-(x**2).sum(axis=1)) + 0.05 * np.random.randn(len(x))
+        >>> quad_gp = QuadGP(x, y, mean='avg')
+        >>> quad_gp.plot_gp(lbs, ubs)
+        >>> val = quad_gp.numerical_quad(lbs, ubs)
+        >>> print(f'Integral value: {val}')
+        >>> print(f'Quadrature points: {quad_gp.x.reshape(-1)}, Weights: {quad_gp.quad_weights}')
+        Example, 1d with acquisition function:
+        >>> lbs = -1
+        >>> ubs = 1
+        >>> x = QuadGP.get_init_points(1, 1, lbs, ubs)
+        >>> y = np.exp(-(x**2).sum(axis=1))
+        >>> quad_gp = QuadGP(x, y, mean='avg')
+        >>> for i in range(10):
+                next_x = quad_gp.acquire_next(lbs + np.random.rand() * (ubs - lbs), lbs, ubs)
+                next_y = np.exp(-next_x**2)
+                quad_gp.add_data(next_x, next_y)
+                quad_gp.plot_gp(lbs, ubs)
+                val= quad_gp.numerical_quad(lbs, ubs)
+                print(f'Integral value: {val}')
+                print(f'Quadrature points: {quad_gp.x.reshape(-1)}, Weights: {quad_gp.quad_weights}')
+
         Example, 2d
-        >>> lbs = [-5, -5]
-        >>> ubs = [5, 5]
+        >>> lbs = [-1, -1]
+        >>> ubs = [1, 1]
         >>> x = QuadGP.get_init_points(10, 2, lbs, ubs)
         >>> y = np.exp(-(x**2).sum(axis=1))
-        >>> quad_gp = QuadGP(x, y)
-        >>> print(quad_gp.numerical_quad(lbs, ubs))
+        >>> quad_gp = QuadGP(x, y, mean='avg')
+        >>> val = quad_gp.numerical_quad(lbs, ubs)
+        >>> print(f'Integral value: {val}')
         >>> print(f'Quadrature points: {quad_gp.x}, Weights: {quad_gp.quad_weights}')
+        Example, 2d with acquisition function:
+        >>> lbs = np.array([-1, -1])
+        >>> ubs = np.array([1, 1])
+        >>> x = QuadGP.get_init_points(10, 2, lbs, ubs)
+        >>> y = np.exp(-(x**2).sum(axis=1))
+        >>> quad_gp = QuadGP(x, y, mean='avg')
+        >>> for i in range(10):
+                next_x = quad_gp.acquire_next(lbs + np.random.rand(2) * (ubs - lbs), lbs, ubs)
+                next_y = np.exp(-(next_x**2).sum())
+                quad_gp.add_data(next_x, next_y)
+                val= quad_gp.numerical_quad(lbs, ubs)
+                print(f'Integral value: {val}')
+                print(f'Quadrature points: {quad_gp.x.reshape(-1)}, Weights: {quad_gp.quad_weights}')
         """
         if self.quad_calculated:
             return self.quad_weights @ self.y
@@ -244,17 +286,30 @@ class QuadGP:
         :param ubs: upper bounds for integration
         :return: integral result
         Example, 1d:
-        >>> lbs = -5
-        >>> ubs = 5
-        >>> x = QuadGP.get_init_points(10, 1, lbs, ubs)
+        >>> lbs = -1
+        >>> ubs = 1
+        >>> x = QuadGP.get_init_points(5, 1, lbs, ubs)
         >>> y = np.exp(-(x**2).sum(axis=1))
-        >>> quad_gp = QuadGP(x, y)
+        >>> quad_gp = QuadGP(x, y, mean='avg')
         >>> quad_gp.plot_gp(lbs, ubs)
-        >>> print(quad_gp.quad(lbs, ubs))
+        >>> coords = np.linspace(lbs, ubs, 100).reshape(-1, 1)
+        >>> val = quad_gp.quad(lbs, ubs)
+        >>> print(f'Integral value: {val}')
+        >>> print(f'Quadrature points: {quad_gp.x.reshape(-1)}, Weights: {quad_gp.quad_weights}')
+        Example, 1d with repeated measurements and noise:
+        >>> lbs = -1
+        >>> ubs = 1
+        >>> x = QuadGP.get_init_points(5, 1, lbs, ubs)
+        >>> x = np.vstack((x, x))
+        >>> y = np.exp(-(x**2).sum(axis=1)) + 0.05 * np.random.randn(len(x))
+        >>> quad_gp = QuadGP(x, y, mean='avg')
+        >>> quad_gp.plot_gp(lbs, ubs)
+        >>> val = quad_gp.quad(lbs, ubs)
+        >>> print(f'Integral value: {val}')
         >>> print(f'Quadrature points: {quad_gp.x.reshape(-1)}, Weights: {quad_gp.quad_weights}')
         Example, 1d with acquisition function:
-        >>> lbs = -5
-        >>> ubs = 5
+        >>> lbs = -1
+        >>> ubs = 1
         >>> x = QuadGP.get_init_points(1, 1, lbs, ubs)
         >>> y = np.exp(-(x**2).sum(axis=1))
         >>> quad_gp = QuadGP(x, y, mean='avg')
@@ -267,14 +322,28 @@ class QuadGP:
                 print(f'Integral value: {val}')
                 print(f'Quadrature points: {quad_gp.x.reshape(-1)}, Weights: {quad_gp.quad_weights}')
         Example, 2d
-        >>> lbs = [-5, -5]
-        >>> ubs = [5, 5]
+        >>> lbs = [-1, -1]
+        >>> ubs = [1, 1]
         >>> x = QuadGP.get_init_points(10, 2, lbs, ubs)
         >>> y = np.exp(-(x**2).sum(axis=1))
-        >>> quad_gp = QuadGP(x, y)
-        >>> print(quad_gp.quad(lbs, ubs))
+        >>> quad_gp = QuadGP(x, y, mean='avg')
+        >>> val = quad_gp.quad(lbs, ubs)
+        >>> print(f'Integral value: {val}')
         >>> print(f'Quadrature points: {quad_gp.x}, Weights: {quad_gp.quad_weights}')
-1        """
+        Example, 2d with acquisition function:
+        >>> lbs = np.array([-1, -1])
+        >>> ubs = np.array([1, 1])
+        >>> x = QuadGP.get_init_points(10, 2, lbs, ubs)
+        >>> y = np.exp(-(x**2).sum(axis=1))
+        >>> quad_gp = QuadGP(x, y, mean='avg')
+        >>> for i in range(10):
+                next_x = quad_gp.acquire_next(lbs + np.random.rand(2) * (ubs - lbs), lbs, ubs)
+                next_y = np.exp(-(next_x**2).sum())
+                quad_gp.add_data(next_x, next_y)
+                val= quad_gp.quad(lbs, ubs)
+                print(f'Integral value: {val}')
+                print(f'Quadrature points: {quad_gp.x.reshape(-1)}, Weights: {quad_gp.quad_weights}')
+        """
         if self.quad_calculated:
             return self.quad_weights @ self.y
         else:
@@ -324,6 +393,18 @@ class QuadGP:
         >>> val, var = quad_gp.discrete_quad(coords)
         >>> print(f'Summation value: {val}, Uncertainty: {var}')
         >>> print(f'Quadrature points: {quad_gp.x.reshape(-1)}, Weights: {quad_gp.discrete_quad_weights}')
+        Example, 1d with repeated measurements and noise:
+        >>> lbs = -1
+        >>> ubs = 1
+        >>> x = QuadGP.get_init_points(5, 1, lbs, ubs)
+        >>> x = np.vstack((x, x))
+        >>> y = np.exp(-(x**2).sum(axis=1)) + 0.05 * np.random.randn(len(x))
+        >>> quad_gp = QuadGP(x, y, mean='avg')
+        >>> quad_gp.plot_gp(lbs, ubs)
+        >>> coords = np.linspace(lbs, ubs, 100).reshape(-1, 1)
+        >>> val, var = quad_gp.discrete_quad(coords)
+        >>> print(f'Summation value: {val}, Uncertainty: {var}')
+        >>> print(f'Quadrature points: {quad_gp.x.reshape(-1)}, Weights: {quad_gp.discrete_quad_weights}')
         Example, 1d with acquisition function:
         >>> lbs = -1
         >>> ubs = 1
@@ -339,6 +420,36 @@ class QuadGP:
                 val, var = quad_gp.discrete_quad(coords)
                 print(f'Summation value: {val}, Uncertainty: {var}')
                 print(f'Quadrature points: {quad_gp.x.reshape(-1)}, Weights: {quad_gp.discrete_quad_weights}')
+        Example, 2d
+        >>> lbs = [-1, -1]
+        >>> ubs = [1, 1]
+        >>> x = QuadGP.get_init_points(10, 2, lbs, ubs)
+        >>> y = np.exp(-(x**2).sum(axis=1))
+        >>> quad_gp = QuadGP(x, y, mean='avg')
+        >>> coords_x0 = np.linspace(lbs[0], ubs[0], 10)
+        >>> coords_x1 = np.linspace(lbs[1], ubs[1], 10)
+        >>> coords_meshgrid = np.meshgrid(coords_x0, coords_x1)
+        >>> coords = np.hstack((coords_meshgrid[0].reshape(-1,1), coords_meshgrid[1].reshape(-1,1)))
+        >>> val, var = quad_gp.discrete_quad(coords)
+        >>> print(f'Summation value: {val}, Variance: {var}')
+        >>> print(f'Quadrature points: {quad_gp.x}, Weights: {quad_gp.discrete_quad_weights}')
+        Example, 2d with acquisition function:
+        >>> lbs = np.array([-1, -1])
+        >>> ubs = np.array([1, 1])
+        >>> x = QuadGP.get_init_points(10, 2, lbs, ubs)
+        >>> y = np.exp(-(x**2).sum(axis=1))
+        >>> quad_gp = QuadGP(x, y, mean='avg')
+        >>> for i in range(10):
+                next_x = quad_gp.acquire_next(lbs + np.random.rand(2) * (ubs - lbs), lbs, ubs)
+                next_y = np.exp(-(next_x**2).sum())
+                quad_gp.add_data(next_x, next_y)
+                coords_x0 = np.linspace(lbs[0], ubs[0], 10)
+                coords_x1 = np.linspace(lbs[1], ubs[1], 10)
+                coords_meshgrid = np.meshgrid(coords_x0, coords_x1)
+                coords = np.hstack((coords_meshgrid[0].reshape(-1,1), coords_meshgrid[1].reshape(-1,1)))
+                val, var = quad_gp.discrete_quad(coords)
+                print(f'Summation value: {val}, Variance: {var}')
+                print(f'Quadrature points: {quad_gp.x}, Weights: {quad_gp.discrete_quad_weights}')
         """
         if self.discrete_quad_calculated:
             return self.discrete_quad_weights @ self.y, self.discrete_quad_uncertainty
@@ -357,10 +468,10 @@ class QuadGP:
             else:
                 self.discrete_quad_weights = zero_mean_weights
 
-            self.discrete_quad_uncertainty = sum((surrogate.kernel(xi.reshape(-1,1), xi.reshape(-1,1)
-                                                  - surrogate.kernel(xi.reshape(-1,1), self.x)
+            self.discrete_quad_uncertainty = sum((surrogate.kernel(xi.reshape(1, -1), xi.reshape(1, -1)
+                                                  - surrogate.kernel(xi.reshape(1, -1), self.x)
                                                   @ jnp.linalg.solve(KXX, surrogate.kernel(self.x,
-                                                                                           xi.reshape(-1,1)))) * Pxi
+                                                                                           xi.reshape(1, -1)))) * Pxi
                                                  for xi, Pxi in zip(coords, prior))).item()
             self.discrete_quad_calculated = True
             return self.discrete_quad_weights @ self.y, self.discrete_quad_uncertainty
