@@ -231,7 +231,8 @@ class QuadGP:
                 KxX = jnp.array([scipy.integrate.nquad(lambda *x: surrogate.kernel(np.array(x).reshape((1, -1)),
                                                                                    X.reshape((1, -1))),
                                                        [*zip(lbs, ubs)])[0] for X in self.x])
-            KXX = surrogate.kernel(self.x, self.x)
+            KXX = (surrogate.kernel(self.x, self.x) +
+                   jnp.exp(self.theta["log_jitter"]) * jnp.eye(len(self.x), len(self.x)))
             self.quad_weights = jnp.linalg.solve(KXX, KxX)
             self.quad_calculated = True
             return self.quad_weights @ self.y
@@ -293,7 +294,8 @@ class QuadGP:
                        jnp.array([jnp.prod(jnp.array([sig[i]*norm.cdf((ub-x[i])/sig[i])-norm.cdf((lb-x[i])/sig[i])
                                                       for i, (ub, lb) in enumerate(zip(ubs, lbs))]).reshape(-1))
                                   for x in self.x]).reshape(-1))
-            KXX = surrogate.kernel(self.x, self.x)
+            KXX = (surrogate.kernel(self.x, self.x) +
+                   jnp.exp(self.theta["log_jitter"]) * jnp.eye(len(self.x), len(self.x)))
             zero_mean_weights = jnp.linalg.solve(KXX, KxX)
             if self.update_mean:
                 nX = self.x.shape[0]
@@ -345,7 +347,8 @@ class QuadGP:
                 prior = jnp.ones(coords.shape[0]) / coords.shape[0]
             surrogate = self.build_gp(self.theta)
             KxX = prior @ surrogate.kernel(coords, self.x)
-            KXX = surrogate.kernel(self.x, self.x)
+            KXX = (surrogate.kernel(self.x, self.x) +
+                   jnp.exp(self.theta["log_jitter"]) * jnp.eye(len(self.x), len(self.x)))
             zero_mean_weights = jnp.linalg.solve(KXX, KxX)
             if self.update_mean:
                 nX = self.x.shape[0]
