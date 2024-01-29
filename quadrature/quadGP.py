@@ -25,7 +25,7 @@ class ExactQuadGP(gpytorch.models.ExactGP):
         :param covar_module: Covariance function, by default set to negative exponential square radial basis function
         :param likelihood: Likelihood function over GP, by default a Gaussian likelihood
         Example:
-        >>> x_init = ExactQuadGP.get_init_points(5, 1)
+        >>> x_init = ExactQuadGP.latin_hypercube(5, 1)
         >>> y_init = x_init**2
         >>> GP = ExactQuadGP(x_init, y_init)
         """
@@ -72,7 +72,7 @@ class ExactQuadGP(gpytorch.models.ExactGP):
         Example:
         >>> lbs = -2
         >>> ubs = 2
-        >>> x = ExactQuadGP.get_init_points(3, 1, lbs, ubs)
+        >>> x = ExactQuadGP.latin_hypercube(3, 1, lbs, ubs)
         >>> y = torch.exp(-x**2).reshape(-1)
         >>> quad_gp = ExactQuadGP(x, y)
         >>> quad_gp.plot_gp(lbs, ubs)
@@ -98,10 +98,10 @@ class ExactQuadGP(gpytorch.models.ExactGP):
         Example:
         >>> lbs = -10
         >>> ubs = 10
-        >>> x = ExactQuadGP.get_init_points(10, 1, lbs, ubs)
+        >>> x = ExactQuadGP.latin_hypercube(10, 1, lbs, ubs)
         >>> y = torch.exp(-x**2)
         >>> quad_gp = ExactQuadGP(x, y)
-        >>> print(quad_gp.numerical_quad(lbs, ubs))
+        >>> print(quad_gp.scipy_quad(lbs, ubs))
         >>> print(f'Quadrature points: {quad_gp.x.reshape(-1)}, Weights: {quad_gp.quad_weights}')
         """
         if self.quad_calculated:
@@ -183,7 +183,7 @@ class ExactQuadGP(gpytorch.models.ExactGP):
         >>> ndim = 3
         >>> lbs = [-1, -1, -1]
         >>> ubs = [1, 1, 1]
-        >>> samples = ExactQuadGP.get_init_points(n_points, ndim, lbs, ubs)
+        >>> samples = ExactQuadGP.latin_hypercube(n_points, ndim, lbs, ubs)
         >>> print(samples)
         """
         if lbs is None:

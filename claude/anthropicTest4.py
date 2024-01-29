@@ -13,6 +13,7 @@ import tinygp
 import os
 import re
 import matplotlib.pyplot as plt
+from quadrature.tinyQuadGP import QuadGP
 
 
 class AnthropicSearchSpace(Anthropic):
@@ -202,5 +203,20 @@ if __name__ == "__main__":
     for X, Y in zip(coords.T[:-1], coords.T[1:]):
         plt.scatter(X, Y)
         plt.show()
+    mean_neg_log_likelihoods = np.array([0.0838, 0.1055, 0.3827, 0.1170, 0.1050, 0.0584])
+    n_batches = 25
+    likelihoods = np.exp(-n_batches * mean_neg_log_likelihoods)
+
+    integrand = QuadGP(coords, likelihoods)
+    lbs = np.zeros(coords.shape[1])
+    ubs = np.ones(coords.shape[1])
+    integral, variance = integrand.mc_quad(1000, lbs, ubs)
+    print(f'Model evidence: {integral}, estimate variance: {variance}')
+    print(f'Evidence integral weights: {integrand.quad_weights}')
+
+    ensemble_weights = integrand.quad_weights * likelihoods / integral
+    print(f'Ensemble weights: {ensemble_weights}')
+
+
 
 
