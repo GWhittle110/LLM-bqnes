@@ -466,20 +466,27 @@ class QuadGP:
             else:
                 self.quad_weights = zero_mean_weights
 
-            self.quad_uncertainty = sum((surrogate.kernel(xi.reshape(1, -1), xi.reshape(1, -1)
-                                         - surrogate.kernel(xi.reshape(1, -1), self.x)
-                                         @ jnp.linalg.solve(KXX, surrogate.kernel(self.x,
-                                                                                        xi.reshape(1, -1)))) * Pxi**2
-                                         for xi, Pxi in zip(coords, prior))).item()
+            # Down sample for calculating uncertainty efficiently
+            n_reduction = int(np.floor(np.sqrt(len(coords))).item())
+            coords_reduced = coords[:n_reduction]
+            prior_reduced = prior[:n_reduction]
+            prior_reduced /= sum(prior_reduced)
+
+            self.quad_uncertainty = sum(sum((surrogate.kernel(xi.reshape(1, -1), xj.reshape(1, -1)
+                                            - surrogate.kernel(xi.reshape(1, -1), self.x)
+                                            @ jnp.linalg.solve(KXX, surrogate.kernel(self.x,
+                                                                                           xi.reshape(1, -1)))) * Pxi
+                                            for xi, Pxi in zip(coords_reduced, prior_reduced))) * Pxj
+                                        for xj, Pxj in zip(coords_reduced, prior_reduced)).item()
             self.quad_calculated = True
             return self.quad_weights @ self.y, self.quad_uncertainty
 
-    def mc_quad(self, n_samples: int = 1000, lbs: list = None, ubs: list = None, sampler: callable = None,
+    def mc_quad(self, n_samples: int = 100, lbs: list = None, ubs: list = None, sampler: callable = None,
                 explicit: bool = False):
         """
         Calculates integral (as an expectation), quadrature weights and uncertainty using Monte Carlo integration. To
         compute the explicit integral (not as an expectation) use a uniform sampler and set explicit to True.
-        :param n_samples: Number of points to sample. Defaults to 1000
+        :param n_samples: Number of points to sample. Defaults to 100
         :param lbs: Integral lower bounds. Defaults to 0
         :param ubs: Integral upper bounds. Defaults to 0
         :param sampler: Sampling method. Defaults to latin hypercube
@@ -492,7 +499,7 @@ class QuadGP:
         >>> y = np.exp(-(x**2).sum(axis=1))
         >>> quad_gp = QuadGP(x, y, mean='avg')
         >>> quad_gp.plot_gp(lbs, ubs)
-        >>> val, var = quad_gp.mc_quad(1000, lbs, ubs, explicit=True)
+        >>> val, var = quad_gp.mc_quad(100, lbs, ubs, explicit=True)
         >>> print(f'Integral value: {val}, Integral variance: {var}')
         >>> print(f'Quadrature points: {quad_gp.x}, Weights: {quad_gp.quad_weights}')
         Example, 1d with repeated measurements and noise:
@@ -503,7 +510,7 @@ class QuadGP:
         >>> y = np.exp(-(x**2).sum(axis=1)) + 0.05 * np.random.randn(len(x))
         >>> quad_gp = QuadGP(x, y, mean='avg')
         >>> quad_gp.plot_gp(lbs, ubs)
-        >>> val, var = quad_gp.mc_quad(1000, lbs, ubs, explicit=True)
+        >>> val, var = quad_gp.mc_quad(100, lbs, ubs, explicit=True)
         >>> print(f'Integral value: {val}, Integral variance: {var}')
         >>> print(f'Quadrature points: {quad_gp.x}, Weights: {quad_gp.quad_weights}')
         Example, 1d with acquisition function:
@@ -517,7 +524,7 @@ class QuadGP:
                 next_y = np.exp(-next_x**2)
                 quad_gp.add_data(next_x, next_y)
                 quad_gp.plot_gp(lbs, ubs)
-                val, var = quad_gp.mc_quad(1000, lbs, ubs, explicit=True)
+                val, var = quad_gp.mc_quad(100, lbs, ubs, explicit=True)
                 print(f'Integral value: {val}, Integral variance: {var}')
                 print(f'Quadrature points: {quad_gp.x}, Weights: {quad_gp.quad_weights}')
 
@@ -527,7 +534,7 @@ class QuadGP:
         >>> x = QuadGP.latin_hypercube(10, 2, lbs, ubs)
         >>> y = np.exp(-(x**2).sum(axis=1))
         >>> quad_gp = QuadGP(x, y, mean='avg')
-        >>> val, var = quad_gp.mc_quad(1000, lbs, ubs, explicit=True)
+        >>> val, var = quad_gp.mc_quad(100, lbs, ubs, explicit=True)
         >>> print(f'Integral value: {val}, Integral variance: {var}')
         >>> print(f'Quadrature points: {quad_gp.x}, Weights: {quad_gp.quad_weights}')
         Example, 2d with acquisition function:
@@ -540,7 +547,7 @@ class QuadGP:
                 next_x = quad_gp.acquire_next(lbs + np.random.rand(2) * (ubs - lbs), lbs, ubs)
                 next_y = np.exp(-(next_x**2).sum())
                 quad_gp.add_data(next_x, next_y)
-                val, var = quad_gp.mc_quad(1000, lbs, ubs, explicit=True)
+                val, var = quad_gp.mc_quad(100, lbs, ubs, explicit=True)
                 print(f'Integral value: {val}, Integral variance: {var}')
                 print(f'Quadrature points: {quad_gp.x}, Weights: {quad_gp.quad_weights}')
         """

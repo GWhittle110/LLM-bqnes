@@ -204,7 +204,7 @@ if __name__ == "__main__":
         plt.scatter(X, Y)
         plt.show()
     mean_neg_log_likelihoods = np.array([0.0838, 0.1055, 0.3827, 0.1170, 0.1050, 0.0584])
-    n_batches = 25
+    n_batches = 100
     likelihoods = np.exp(-n_batches * mean_neg_log_likelihoods)
 
     integrand = QuadGP(coords, likelihoods)
