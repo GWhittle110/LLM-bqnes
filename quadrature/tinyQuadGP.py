@@ -475,7 +475,7 @@ class QuadGP:
             self.quad_uncertainty = sum(sum((surrogate.kernel(xi.reshape(1, -1), xj.reshape(1, -1)
                                             - surrogate.kernel(xi.reshape(1, -1), self.x)
                                             @ jnp.linalg.solve(KXX, surrogate.kernel(self.x,
-                                                                                           xi.reshape(1, -1)))) * Pxi
+                                                                                           xj.reshape(1, -1)))) * Pxi
                                             for xi, Pxi in zip(coords_reduced, prior_reduced))) * Pxj
                                         for xj, Pxj in zip(coords_reduced, prior_reduced)).item()
             self.quad_calculated = True
@@ -495,7 +495,7 @@ class QuadGP:
         Example, 1d:
         >>> lbs = -1
         >>> ubs = 1
-        >>> x = QuadGP.latin_hypercube(5, 1, lbs, ubs)
+        >>> x = QuadGP.latin_hypercube(10, 1, lbs, ubs)
         >>> y = np.exp(-(x**2).sum(axis=1))
         >>> quad_gp = QuadGP(x, y, mean='avg')
         >>> quad_gp.plot_gp(lbs, ubs)
