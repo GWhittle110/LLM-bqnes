@@ -1,8 +1,5 @@
 """
-Testing potential interface between rest of NAS/NES algorithm and Anthropic API search space
-This test uses chain of thought prompting and has Claude analyse source code for some already trained models, identify
-a common coordinate space but not suggest a covariance function. It refines the previous example by adopting a step by
-step instructional approach
+Interface with LLM for construction of search space
 """
 
 from anthropic import Anthropic, HUMAN_PROMPT, AI_PROMPT
@@ -12,11 +9,9 @@ import numpy as np
 import tinygp
 import os
 import re
-import matplotlib.pyplot as plt
-from quadrature.tinyQuadGP import QuadGP
 
 
-class AnthropicSearchSpace(Anthropic):
+class AnthropicSearchSpaceConstructor(Anthropic):
     """
     Given a set of models and their source code, constructs a search space in the form of a common coordinate system
     along with specific coordinates for each model and suggests the form of a covariance function to be used in a
@@ -37,14 +32,13 @@ class AnthropicSearchSpace(Anthropic):
         :param max_tokens: int, maximum number of tokens to sample
         :param model: str, Anthropic LLM model used
         :param examples: Iterable[str], iterable of additional chain of thought prompts the user wishes to use to 
-        initialise the search space. Must be in form f"{HUMAN_PROMPT} ... {AI_PROMPT} ... "
+        initialise the search space. Must be in form f"{HUMAN_PROMPT} ... {AI_PROMPT} ..."
         """
 
         super().__init__(api_key=api_key, *args, **kwargs)
 
         self.max_tokens = max_tokens
         self.model = model
-        self.coords = None
 
         self.system_prompt = f"You are a sophisticated, highly intelligent AI whose sole purpose is to be part of a \
                                Neural ensemble search algorithm. This algorithm is using a Gaussian process to \
@@ -103,54 +97,6 @@ class AnthropicSearchSpace(Anthropic):
                                case restart from task 2. Task 6: Check the produced coordinates are uncorrelated, and \
                                if they are restart from task 2 with different features. "
 
-        source_code_ex1 = [open('../mnistEnsembleExample/' + file).read()
-                           for file in os.listdir('../mnistEnsembleExample/')
-                           if file.endswith(".py") and "Train" not in file]
-        source_code_prompt_ex1 = "".join([f"<source index={i}> {source} </source>"
-                                          for i, source in enumerate(source_code_ex1)])
-
-        self.default_examples = f"{HUMAN_PROMPT} I want to generate a latent space representation of this set \
-                                  of models: <models>{source_code_prompt_ex1}</models> trained on the MNIST dataset, \
-                                  a relatively easy image classification task with a large number of training samples. \
-                                  Please generate coordinates for these models in this low dimensional latent space. \
-                                  When you are done, check your answers are valid referencing the requirements in the \
-                                  <requirements></requirements> XML tags. Talk me through your chain of thought. \
-                                  {AI_PROMPT} This task is relatively easy so even simple models should perform okay \
-                                  and therefore should not be clustered together. The number of training samples in \
-                                  this task is high, so overfitting is unlikely and complex models are likely to do \
-                                  better than simpler models and therefore should not be clustered together. This \
-                                  suggests model complexity is likely to be a good separator and should be included as \
-                                  a dimension in the latent space. \
-                                  The source code provided contains models from the CNN, MLP, ViT and boosted trees \
-                                  classes. As this is an image classification task and the number of model classes is \
-                                  high the ability of each of these models to process images is a good separator and \
-                                  should be included as a dimension in the latent space. The number of models is low, \
-                                  so these 2 dimensions are sufficiently rich to represent the models. \
-                                  Model 1 is a CNN with 2 convolutional layers with larger patches with many channels \
-                                  so has very high image processing ability, and has a moderate number of parameters \
-                                  so is moderately complex. \
-                                  Model 2 is a CNN with 3 convolutional layers but smaller patches, giving good image \
-                                  processing ability but not as good as Model 1. The overall parameter number is \
-                                  higher than Model 1, giving a slightly higher complexity score. \
-                                  Model 3 is a fairly small MLP giving low image processing ability and low complexity. \
-                                  Model 4 is a more complex MLP than Model 3, so also has a low image processing \
-                                  ability but much higher complexity than Model 3. \
-                                  Model 5 is a vision transformer so gets a high image processing power score and has \
-                                  a high number of parameters so gets a high complexity. \
-                                  Model 6 is an XGBoost model so gets low image processing power. The number of trees \
-                                  is unconstrained however giving maximum complexity. \
-                                  I therefore suggest a 2 dimensional latent space based on image processing power and \
-                                  model complexity with the following coordinates: \
-                                  <models><coordinate index=1>[0.9,0.3]</coordinate> \
-                                  <coordinate index=2>[0.8,0.4]</coordinate> \
-                                  <coordinate index=3>[0.1,0.1]</coordinate> \
-                                  <coordinate index=4>[0.1,0.2]</coordinate> \
-                                  <coordinate index=5>[0.9,0.9]</coordinate> \
-                                  <coordinate index=6>[0.1,0.9]</coordinate></models> \
-                                  Referring to the requirements: <requirements> <requirement index=0> The latent space \
-                                  is 2 dimensional which is low but can still meaningfully represent these models \
-                                  </requirement><requirement index=1> All models have 2 dimensional coordinates \
-                                  </requirement></requirements> Hence the results are valid."
 
         if isinstance(examples, str):
             self.user_examples = examples
@@ -170,7 +116,7 @@ class AnthropicSearchSpace(Anthropic):
         else:
             self.starter_prompt = init_prompt
 
-    def construct_search_space(self, source_code: Iterable[str], task: str, dataset_info: str)\
+    def construct_search_space(self, source_code: Iterable[str], task: str, dataset_info: str) \
             -> Tuple[list[np.ndarray], tinygp.kernels.Kernel]:
         """
         :param source_code: iterable[str] containing source code for all models in the ensemble candidate set
@@ -180,7 +126,8 @@ class AnthropicSearchSpace(Anthropic):
         space and corresponding Gaussian process kernel
         """
 
-        source_code_prompt = "".join([f"<source index={i}> {source} </source>" for i, source in enumerate(source_code)])
+        source_code_prompt = "".join(
+            [f"<source index={i}> {source} </source>" for i, source in enumerate(source_code)])
 
         prompt = f"{HUMAN_PROMPT} Please analyse the following source code: <models> {source_code_prompt} </models>\
                    These models will be used for {task}. The dataset information is: {dataset_info}. Then carry out \
@@ -188,54 +135,9 @@ class AnthropicSearchSpace(Anthropic):
 
         complete_prompt = "".join((self.starter_prompt, prompt))
         completion = self.completions.create(model=self.model, max_tokens_to_sample=self.max_tokens,
-                                           prompt=complete_prompt)
+                                             prompt=complete_prompt)
         response = completion.completion
         print(response)
         coord_strings = re.findall('<coordinate index=[0-9]+>(.+?)</coordinate>', response, flags=re.DOTALL)
-        self.coords = np.array([[float(x) for x in re.findall('[0-9|.]+', coord)] for coord in coord_strings])
-        return self.coords
-
-
-if __name__ == "__main__":
-    source_code = [open('../mnistEnsembleExample/' + file).read()
-                   for file in os.listdir('../mnistEnsembleExample/')
-                   if file.endswith(".py") and "Train" not in file]
-    task = "image classification"
-    dataset_info = "MNIST dataset, 60000 training samples, 10 classes"
-    search_space = AnthropicSearchSpace(use_default_examples=False)
-    coords = search_space.construct_search_space(source_code, task, dataset_info)
-    print(coords)
-    for X, Y in zip(coords.T[:-1], coords.T[1:]):
-        plt.scatter(X, Y)
-        plt.show()
-    mean_neg_log_likelihoods = np.array([0.0838, 0.1055, 0.3827, 0.1170, 0.1050, 0.0584])
-    n_batches = 25
-    likelihoods = np.exp(-n_batches * mean_neg_log_likelihoods)
-
-    integrand = QuadGP(coords, likelihoods, mean='avg')
-    lbs = np.zeros(coords.shape[1])
-    ubs = np.ones(coords.shape[1])
-    integral, variance = integrand.mc_quad(1000, lbs, ubs)
-    print(f'Model evidence: {integral}, estimate variance: {variance}')
-    print(f'Evidence integral weights: {integrand.quad_weights}')
-
-    ensemble_weights = integrand.quad_weights * likelihoods / integral
-    print(f'Ensemble weights: {ensemble_weights}')
-
-    epsilon = 0.8 * np.min(likelihoods)
-    z = np.sqrt(2 * (likelihoods - epsilon))
-
-    integrand_wsabi = QuadGP(coords, z)
-    weights = integrand.wsabi_quad(epsilon)
-    normalised_weights = np.diag(weights) / np.trace(weights)
-    integral = likelihoods @ normalised_weights
-    print(f'WSABI model evidence: {integral}')
-
-    ensemble_weights = normalised_weights * likelihoods / integral
-    print(f'WSABI ensemble weights: {ensemble_weights}')
-
-
-
-
-
-
+        coords = np.array([[float(x) for x in re.findall('[0-9|.]+', coord)] for coord in coord_strings])
+        return coords
