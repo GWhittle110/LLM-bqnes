@@ -69,7 +69,7 @@ class AnthropicSearchSpace(Anthropic):
                                of your understanding of the diversity of models present in the candidate set. \
                                Task 2: Using this understanding, identify features that can be used as different \
                                coordinate dimensions for the search space. These features should be fairly abstract, \
-                               such as complexity, aspect ratio, spatial processing power, overfitting susceptibility \
+                               such as complexity, aspect ratio, spatial processing power, representation power \
                                etc. The number of features chosen should be as low as possible while still efficiently \
                                clustering similar models together. As such, this should increase only as the diversity \
                                of models in the candidate set increases and more dimensions are needed to separate \
@@ -95,8 +95,12 @@ class AnthropicSearchSpace(Anthropic):
                                code for each model and meaningfully separate different models while clustering similar \
                                models together. If not, stop and think about why this is. It is likely to be because \
                                the chosen features are inappropriate, the number of features chosen is too low or \
-                               both. Once you have thought about why your first attempt failed, from task 2 with this \
-                               new understanding. "
+                               both. Once you have thought about why your first attempt failed, restart from task 2 \
+                               with this new understanding. Task 5: Check the produced coordinates are all between 0 \
+                               and 1, and are continuous not categorical e.g. they cannot only have entries of 0 and 1 \
+                               and instead must have values which are continuous between 0 and 1. If this is not the \
+                               case restart from task 2. Task 6: Check the produced coordinates are uncorrelated, and \
+                               if they are restart from task 2 with different features. "
 
         source_code_ex1 = [open('../mnistEnsembleExample/' + file).read()
                            for file in os.listdir('../mnistEnsembleExample/')
@@ -204,10 +208,10 @@ if __name__ == "__main__":
         plt.scatter(X, Y)
         plt.show()
     mean_neg_log_likelihoods = np.array([0.0838, 0.1055, 0.3827, 0.1170, 0.1050, 0.0584])
-    n_batches = 100
+    n_batches = 25
     likelihoods = np.exp(-n_batches * mean_neg_log_likelihoods)
 
-    integrand = QuadGP(coords, likelihoods)
+    integrand = QuadGP(coords, likelihoods, mean='avg')
     lbs = np.zeros(coords.shape[1])
     ubs = np.ones(coords.shape[1])
     integral, variance = integrand.mc_quad(1000, lbs, ubs)
@@ -216,6 +220,20 @@ if __name__ == "__main__":
 
     ensemble_weights = integrand.quad_weights * likelihoods / integral
     print(f'Ensemble weights: {ensemble_weights}')
+
+    epsilon = 0.8 * np.min(likelihoods)
+    z = np.sqrt(2 * (likelihoods - epsilon))
+
+    integrand_wsabi = QuadGP(coords, z)
+    weights = integrand.wsabi_quad(epsilon)
+    normalised_weights = np.diag(weights) / np.trace(weights)
+    integral = likelihoods @ normalised_weights
+    print(f'WSABI model evidence: {integral}')
+
+    ensemble_weights = normalised_weights * likelihoods / integral
+    print(f'WSABI ensemble weights: {ensemble_weights}')
+
+
 
 
 

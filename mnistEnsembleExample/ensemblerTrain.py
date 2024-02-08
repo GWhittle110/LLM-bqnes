@@ -39,7 +39,7 @@ models = [cnn1, cnn2, mlp1, mlp2, vit, xgb]
 
 n_models = len(models)
 
-l = 0  # regularization
+l = 0.1  # regularization
 
 with torch.no_grad():
     data_individual = [model(data) for model in models]

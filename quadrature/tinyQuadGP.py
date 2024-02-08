@@ -93,14 +93,14 @@ class QuadGP:
             theta = self.theta
         return -self.build_gp(theta).log_probability(self.y)
 
-    def optimize_theta(self, La: float = 0.1, Ls: float = 0.01):
+    def optimize_theta(self, La: float = 0.1, Ls: float = 0.1):
         """
         Optimize hyperparameters over current data
         :param La: weighting of regularisation term on log amplitude
         :param Ls: weighting of regularisation term on scale
         """
         func = lambda theta: (self.negative_log_likelihood(theta) + La * theta["log_amp"] ** 2
-                              + Ls * theta["log_scale"] @ theta["log_scale"])
+                              + Ls * jnp.exp(theta["log_scale"]) @ jnp.exp(theta["log_scale"]))
         minimizer = jaxopt.ScipyMinimize(fun=func)
         self.theta = minimizer.run(init_params=self.theta).params
 
@@ -467,16 +467,16 @@ class QuadGP:
                 self.quad_weights = zero_mean_weights
 
             # Down sample for calculating uncertainty efficiently
-            n_reduction = int(np.floor(np.sqrt(len(coords))).item())
-            coords_reduced = coords[:n_reduction]
-            prior_reduced = prior[:n_reduction]
+            reduction_interval = int(np.floor(np.sqrt(len(coords))).item())
+            coords_reduced = coords[::reduction_interval]
+            prior_reduced = prior[::reduction_interval]
             prior_reduced /= sum(prior_reduced)
 
-            self.quad_uncertainty = sum(sum((surrogate.kernel(xi.reshape(1, -1), xj.reshape(1, -1)
+            self.quad_uncertainty = sum(sum((surrogate.kernel(xi.reshape(1, -1), xj.reshape(1, -1))
                                             - surrogate.kernel(xi.reshape(1, -1), self.x)
-                                            @ jnp.linalg.solve(KXX, surrogate.kernel(self.x,
-                                                                                           xj.reshape(1, -1)))) * Pxi
-                                            for xi, Pxi in zip(coords_reduced, prior_reduced))) * Pxj
+                                            @ jnp.linalg.solve(KXX,
+                                                               surrogate.kernel(self.x, xj.reshape(1, -1)))) * Pxi
+                                            for xi, Pxi in zip(coords_reduced, prior_reduced)) * Pxj
                                         for xj, Pxj in zip(coords_reduced, prior_reduced)).item()
             self.quad_calculated = True
             return self.quad_weights @ self.y, self.quad_uncertainty
@@ -488,7 +488,7 @@ class QuadGP:
         compute the explicit integral (not as an expectation) use a uniform sampler and set explicit to True.
         :param n_samples: Number of points to sample. Defaults to 100
         :param lbs: Integral lower bounds. Defaults to 0
-        :param ubs: Integral upper bounds. Defaults to 0
+        :param ubs: Integral upper bounds. Defaults to 1
         :param sampler: Sampling method. Defaults to latin hypercube
         :param explicit: Whether to compute the integral explicitly instead of as an expectation.
         :return: (Integral results, Integral variance)
@@ -571,6 +571,51 @@ class QuadGP:
             prior = None
 
         return self.discrete_quad(samples, prior)
+
+
+    def wsabi_quad(self, epsilon, n_samples: int = 100, lbs: list = None, ubs: list = None, sampler: callable = None):
+        """
+        Calculates integral (as an expectation), quadrature weights and uncertainty using Monte Carlo integration,
+        enforcing a positive integrand using the wsabi-L warping method.
+        :param n_samples: Number of points to sample. Defaults to 100
+        :param lbs: Integral lower bounds. Defaults to 0
+        :param ubs: Integral upper bounds. Defaults to 0
+        :param sampler: Sampling method. Defaults to latin hypercube
+        :return: (Integral results, Integral variance)
+        >>> x = QuadGP.latin_hypercube(20, 1, 0, 1)
+        >>> y = (np.sin(10*x)**2).reshape(-1) + 0.2
+        >>> epsilon = 0.8 * np.min(y)
+        >>> z = np.sqrt(2*(y-epsilon))
+        >>> quad_gp = QuadGP(x, z)
+        >>> weights = quad_gp.wsabi_quad(epsilon)
+        >>> integral_weights = np.diag(weights) / np.trace(weights)
+        >>> print(y @ integral_weights)
+        """
+
+        if lbs is None:
+            lbs = [0] * self.ndim
+        if ubs is None:
+            ubs = [1] * self.ndim
+        if sampler is None:
+            sampler = self.latin_hypercube
+
+        samples = sampler(n_points=n_samples, ndim=self.ndim, lbs=lbs, ubs=ubs)
+        prior = jnp.ones(samples.shape[0]) / samples.shape[0]
+
+        surrogate = self.build_gp(self.theta)
+
+        KXxKxX = (surrogate.kernel(self.x, samples) @ np.diag(prior) @ surrogate.kernel(samples, self.x))
+        KXX = (surrogate.kernel(self.x, self.x) +
+               (epsilon + np.exp(self.theta["log_jitter"])) * jnp.eye(len(self.x), len(self.x)))
+        KXX_i = np.linalg.inv(KXX)
+
+        weights = KXX_i @ KXxKxX @ KXX_i
+        print(weights)
+        integral = epsilon + 0.5 * self.y @ weights @ self.y
+        print(integral)
+        return weights
+
+
 
 
     def plot_gp(self, lbs, ubs):
