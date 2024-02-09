@@ -6,9 +6,11 @@ from anthropic import Anthropic, HUMAN_PROMPT, AI_PROMPT
 from dotenv import dotenv_values
 from typing import Iterable, Union, Tuple
 import numpy as np
-import tinygp
-import os
 import re
+from searchSpace import SearchSpace
+import inspect
+from torch.utils.data import Dataset
+import logging
 
 
 class AnthropicSearchSpaceConstructor(Anthropic):
@@ -116,16 +118,21 @@ class AnthropicSearchSpaceConstructor(Anthropic):
         else:
             self.starter_prompt = init_prompt
 
-    def construct_search_space(self, source_code: Iterable[str], task: str, dataset_info: str) \
-            -> Tuple[list[np.ndarray], tinygp.kernels.Kernel]:
+    def construct_search_space(self, models: list[callable], task: str, dataset: Dataset) -> SearchSpace:
         """
-        :param source_code: iterable[str] containing source code for all models in the ensemble candidate set
+        :param models: list containing model objects
         :param task: str detailing the task eg "image classification"
-        :param dataset_info: information about the dataset, should include number of training samples "
-        :return: tuple containing list of numpy arrays representing coordinates of all models in constructed search
-        space and corresponding Gaussian process kernel
+        :param dataset: Training dataset for models
+        :return: SearchSpace object containing coordinates, models and dataset
         """
 
+        if "classification" in task.lower():
+            dataset_info = f'Number of datapoints: {len(dataset)}, number of output classes: {len(dataset.classes)}'
+        else:
+            dataset_info = f'Number of datapoints: {len(dataset)}, target mean: {dataset.targets.mean().item()}, \
+                             target standard deviation: {dataset.targets.std().item()}'
+
+        source_code = [inspect.getsource(model) for model in models]
         source_code_prompt = "".join(
             [f"<source index={i}> {source} </source>" for i, source in enumerate(source_code)])
 
@@ -137,7 +144,10 @@ class AnthropicSearchSpaceConstructor(Anthropic):
         completion = self.completions.create(model=self.model, max_tokens_to_sample=self.max_tokens,
                                              prompt=complete_prompt)
         response = completion.completion
-        print(response)
+        logger = logging.getLogger("logger")
+        logger.setLevel(20)
+        logger.info(response)
         coord_strings = re.findall('<coordinate index=[0-9]+>(.+?)</coordinate>', response, flags=re.DOTALL)
         coords = np.array([[float(x) for x in re.findall('[0-9|.]+', coord)] for coord in coord_strings])
-        return coords
+        search_space = SearchSpace(models, coords, dataset)
+        return search_space

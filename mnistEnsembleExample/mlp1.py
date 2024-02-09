@@ -21,7 +21,7 @@ class MLP1(nn.Module):
         self.fc4 = nn.Linear(50, 10)
 
         if trained:
-            self.load_state_dict(torch.load('./states/mlp1.pth'))
+            self.load_state_dict(torch.load('C:/Users/gwhit/PycharmProjects/4YP/mnistEnsembleExample/states/mlp1.pth'))
 
     def forward(self, x):
         x = x.reshape(-1, 784)

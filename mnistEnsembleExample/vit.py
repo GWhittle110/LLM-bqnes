@@ -10,12 +10,12 @@ from einops import repeat
 from mnistEnsembleExample.torchTrain import torchTrain
 
 
-class ViT(nn.Module):
+class VIT(nn.Module):
     """
     Vision transformer class for 28x28 image
     """
     def __init__(self, trained=True):
-        super(ViT, self).__init__()
+        super(VIT, self).__init__()
         channels = 1
         transformer_dim = 128
         depth = 2
@@ -43,7 +43,7 @@ class ViT(nn.Module):
             nn.GELU(),
             nn.Linear(mlp_dim, num_classes))
         if trained:
-            self.load_state_dict(torch.load('./states/vit.pth'))
+            self.load_state_dict(torch.load('C:/Users/gwhit/PycharmProjects/4YP/mnistEnsembleExample/states/vit.pth'))
 
     def forward(self, img):
         x = self.to_patch_embedding(img)
@@ -63,6 +63,6 @@ class ViT(nn.Module):
 
 
 if __name__ == "__main__":
-    model = ViT(trained=False)
+    model = VIT(trained=False)
     torchTrain(model, "vit", device=torch.device("cuda:0"), n_epochs=10, learning_rate=0.01)
 

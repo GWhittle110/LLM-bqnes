@@ -23,7 +23,7 @@ class CNN2(nn.Module):
         self.fc3 = nn.Linear(50, 10)
 
         if trained:
-            self.load_state_dict(torch.load('./states/cnn2.pth'))
+            self.load_state_dict(torch.load('C:/Users/gwhit/PycharmProjects/4YP/mnistEnsembleExample/states/cnn2.pth'))
 
     def forward(self, x):
         x = F.relu(F.max_pool2d(self.conv1(x), 2))

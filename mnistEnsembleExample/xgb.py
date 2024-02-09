@@ -15,7 +15,7 @@ class XGBMNIST:
     def __init__(self, trained=True, *args, **kwargs):
         self.model = xgb.XGBClassifier(*args, **kwargs)
         if trained:
-            self.model.load_model("./states/xgb.json")
+            self.model.load_model("C:/Users/gwhit/PycharmProjects/4YP/mnistEnsembleExample/states/xgb.json")
 
     def __call__(self, x):
         x = x.reshape(-1, 784)
