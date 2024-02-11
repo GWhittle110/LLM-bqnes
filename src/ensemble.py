@@ -74,7 +74,6 @@ class SqEnsemble(Ensemble):
         numerator_integrand = member_predictions * self.likelihoods
         epsilon = 0.8 * np.min(numerator_integrand, axis=-1)
         z = np.sqrt(2 * (numerator_integrand - np.expand_dims(epsilon, axis=-1)))
-        breakpoint()
         ensemble_prediction = ((epsilon +
                                0.5 * np.einsum('...i, ij, ...j -> ...', z, self.quad_weights, z))
                                / self.evidence)
