@@ -8,7 +8,7 @@ import xgboost as xgb
 from mnistEnsembleExample.xgbTrain import xgbTrain
 
 
-class XGBMNIST:
+class XGB:
     """
     XGBoost model for MNIST, interface with pytorch
     """
@@ -34,5 +34,5 @@ class XGBMNIST:
 
 
 if __name__ == "__main__":
-    model = XGBMNIST(trained=False)
+    model = XGB(trained=False)
     xgbTrain(model)

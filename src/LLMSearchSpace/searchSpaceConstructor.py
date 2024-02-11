@@ -7,7 +7,7 @@ from dotenv import dotenv_values
 from typing import Iterable, Union, Tuple
 import numpy as np
 import re
-from searchSpace import SearchSpace
+from src.LLMSearchSpace.searchSpace import SearchSpace
 import inspect
 from torch.utils.data import Dataset
 import logging
@@ -132,7 +132,7 @@ class AnthropicSearchSpaceConstructor(Anthropic):
             dataset_info = f'Number of datapoints: {len(dataset)}, target mean: {dataset.targets.mean().item()}, \
                              target standard deviation: {dataset.targets.std().item()}'
 
-        source_code = [inspect.getsource(model) for model in models]
+        source_code = [inspect.getsource(type(model)) for model in models]
         source_code_prompt = "".join(
             [f"<source index={i}> {source} </source>" for i, source in enumerate(source_code)])
 
@@ -144,8 +144,8 @@ class AnthropicSearchSpaceConstructor(Anthropic):
         completion = self.completions.create(model=self.model, max_tokens_to_sample=self.max_tokens,
                                              prompt=complete_prompt)
         response = completion.completion
-        logger = logging.getLogger("logger")
-        logger.setLevel(20)
+        logger = logging.getLogger("claude")
+        logging.basicConfig(level=20)
         logger.info(response)
         coord_strings = re.findall('<coordinate index=[0-9]+>(.+?)</coordinate>', response, flags=re.DOTALL)
         coords = np.array([[float(x) for x in re.findall('[0-9|.]+', coord)] for coord in coord_strings])

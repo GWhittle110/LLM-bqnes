@@ -84,15 +84,15 @@ class IntegrandModel:
         """
 
         if prior is None:
-            prior = jnp.ones(coords.shape[0]) / coords.shape[0]
+            prior = np.ones(coords.shape[0]) / coords.shape[0]
         surrogate = self.surrogate.build_gp()
         self.quad_points = self.surrogate.x
         KxX = prior @ surrogate.kernel(coords, self.quad_points)
         KXX = (surrogate.kernel(self.quad_points, self.quad_points) +
-               jnp.exp(self.surrogate.theta["log_jitter"]) * jnp.eye(len(self.quad_points), len(self.quad_points)))
-        while jnp.linalg.det(KXX) < min_det:
-            KXX += min_det * jnp.eye(len(self.quad_points), len(self.quad_points))
-        self.quad_weights = jnp.linalg.solve(KXX, KxX)
+               np.exp(self.surrogate.theta["log_jitter"]) * np.eye(len(self.quad_points), len(self.quad_points)))
+        while np.linalg.det(KXX) < min_det:
+            KXX += min_det * np.eye(len(self.quad_points), len(self.quad_points))
+        self.quad_weights = np.linalg.solve(KXX, KxX)
         self.evidence = self.quad_weights @ self.surrogate.y
 
         # Down sample for calculating uncertainty efficiently
@@ -103,7 +103,7 @@ class IntegrandModel:
 
         self.variance = sum(sum((surrogate.kernel(xi.reshape(1, -1), xj.reshape(1, -1))
                                 - surrogate.kernel(xi.reshape(1, -1), self.quad_points)
-                                @ jnp.linalg.solve(KXX, surrogate.kernel(self.quad_points, xj.reshape(1, -1)))) * Pxi
+                                @ np.linalg.solve(KXX, surrogate.kernel(self.quad_points, xj.reshape(1, -1)))) * Pxi
                                 for xi, Pxi in zip(coords_reduced, prior_reduced)) * Pxj
                             for xj, Pxj in zip(coords_reduced, prior_reduced)).item()
 
@@ -211,14 +211,14 @@ class SqIntegrandModel(IntegrandModel):
         """
 
         if prior is None:
-            prior = jnp.ones(coords.shape[0]) / coords.shape[0]
+            prior = np.ones(coords.shape[0]) / coords.shape[0]
         surrogate = self.surrogate.build_gp()
         self.quad_points = self.surrogate.x
         KXxxX = surrogate.kernel(self.quad_points, coords) @ np.diag(prior) @ surrogate.kernel(coords, self.quad_points)
         KXX = (surrogate.kernel(self.quad_points, self.quad_points) +
-               np.exp(self.surrogate.theta["log_jitter"]) * jnp.eye(len(self.quad_points), len(self.quad_points)))
-        while jnp.linalg.det(KXX) < min_det:
-            KXX += min_det * jnp.eye(len(self.quad_points), len(self.quad_points))
+               np.exp(self.surrogate.theta["log_jitter"]) * np.eye(len(self.quad_points), len(self.quad_points)))
+        while np.linalg.det(KXX) < min_det:
+            KXX += min_det * np.eye(len(self.quad_points), len(self.quad_points))
         KXX_i = np.linalg.inv(KXX)
         self.quad_weights = KXX_i @ KXxxX @ KXX_i
         self.evidence = self.surrogate.epsilon + 0.5 * self.surrogate.y @ self.quad_weights @ self.surrogate.y

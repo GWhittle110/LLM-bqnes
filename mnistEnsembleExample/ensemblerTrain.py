@@ -12,7 +12,7 @@ from mnistEnsembleExample.cnn2 import CNN2
 from mnistEnsembleExample.mlp1 import MLP1
 from mnistEnsembleExample.mlp2 import MLP2
 from mnistEnsembleExample.vit import VIT
-from mnistEnsembleExample.xgb import XGBMNIST
+from mnistEnsembleExample.xgb import XGB
 
 torch.backends.cudnn.enabled = False
 torch.manual_seed(2)
@@ -33,7 +33,7 @@ cnn2 = CNN2().eval()
 mlp1 = MLP1().eval()
 mlp2 = MLP2().eval()
 vit = VIT().eval()
-xgb = XGBMNIST()
+xgb = XGB()
 
 models = [cnn1, cnn2, mlp1, mlp2, vit, xgb]
 
