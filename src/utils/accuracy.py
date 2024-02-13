@@ -3,7 +3,6 @@ Function to compute accuracy over test dataset
 """
 
 import torch
-from torcheval.metrics import MulticlassAccuracy
 from torch.utils.data import DataLoader, Dataset
 
 
@@ -18,7 +17,7 @@ def accuracy(model, dataset: Dataset, batch_size: int = 100) -> float:
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
     with torch.no_grad():
-        acc = sum(torch.count_nonzero(torch.argmax(model(inputs), dim=1) == targets)
-                  for inputs, targets in dataloader) / len(dataset)
+        acc = sum(torch.sum(torch.argmax(model(inputs), dim=1) == targets)
+                  for inputs, targets in dataloader)
 
     return acc

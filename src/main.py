@@ -3,12 +3,15 @@ Main file for running experiments
 """
 
 import torchvision
+import warnings
 from src.LLMSearchSpace import *
 from src.bayes_quad import *
 from src.utils.logLikelihood import log_likelihood
 from src.ensemble import *
 from src.utils.loadModels import load_models
 from src.utils.accuracy import accuracy
+
+warnings.filterwarnings("ignore", category=UserWarning)
 
 train_dataset = torchvision.datasets.MNIST('/files/', train=True, download=True,
                                            transform=torchvision.transforms.Compose([
