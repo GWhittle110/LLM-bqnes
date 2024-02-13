@@ -25,7 +25,6 @@ class MLP2(nn.Module):
 
         if trained:
             self.load_state_dict(torch.load('C:/Users/gwhit/PycharmProjects/4YP/mnistEnsembleExample/states/mlp2.pth'))
-        self.eval()
 
     def forward(self, x):
         x = x.reshape(-1, 784)

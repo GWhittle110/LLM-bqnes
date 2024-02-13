@@ -21,6 +21,7 @@ class Ensemble:
         self.quad_weights = quad_weights
         self.likelihoods = likelihoods
         self.evidence = evidence
+        self.weights = self.quad_weights * self.likelihoods / self.evidence
 
     def __call__(self, x: np.ndarray) -> np.ndarray:
         """
@@ -41,8 +42,7 @@ class Ensemble:
         >>> print(ensemble(x2))
         """
         member_predictions = np.stack([model(x) for model in self.members], -1)
-        weights = self.quad_weights * self.likelihoods / self.evidence
-        return member_predictions @ weights
+        return member_predictions @ self.weights
 
 
 class SqEnsemble(Ensemble):

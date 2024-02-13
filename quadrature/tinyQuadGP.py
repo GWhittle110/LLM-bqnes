@@ -639,7 +639,7 @@ class QuadGP:
         # Shade between the lower and upper confidence bounds
         ax.fill_between(test_x.flatten(), test_y.flatten() - 2 * test_sd, test_y + 2 * test_sd, alpha=0.5)
         ax.set_ylim([-3, 3])
-        ax.legend(['Observed Data', 'Mean', 'Confidence'])
+        ax.legend(['Observed Data', 'Mean', '95% Confidence Interval'])
         plt.show()
 
     @staticmethod

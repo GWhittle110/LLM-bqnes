@@ -2,15 +2,13 @@
 Main file for running experiments
 """
 
-import numpy as np
 import torchvision
-import inspect
 from src.LLMSearchSpace import *
 from src.bayes_quad import *
-from mnistEnsembleExample import *
 from src.utils.logLikelihood import log_likelihood
-import mnistEnsembleExample
 from src.ensemble import *
+from src.utils.loadModels import load_models
+from src.utils.accuracy import accuracy
 
 train_dataset = torchvision.datasets.MNIST('/files/', train=True, download=True,
                                            transform=torchvision.transforms.Compose([
@@ -24,9 +22,7 @@ test_dataset = torchvision.datasets.MNIST('/files/', train=False, download=True,
                                           torchvision.transforms.Normalize((0.1307,), (0.3081,))
                                           ]))
 
-models = [eval(f"mnistEnsembleExample.{model}.{model.upper()}()")
-              for model, _ in inspect.getmembers(mnistEnsembleExample)
-          if "__" not in model and "train" not in model.lower()]
+models = load_models("experiments\\mnist")
 
 search_space_constructor = searchSpaceConstructor.AnthropicSearchSpaceConstructor(use_default_examples=False)
 
@@ -35,12 +31,12 @@ search_space = search_space_constructor.construct_search_space(models, "Image cl
 for coordinate in search_space.coordinates:
     search_space.query_log_likelihood(coordinate=coordinate)
 
-integrand = quadrature.IntegrandModel(search_space.coordinates, np.exp(search_space.log_likelihoods / 5000))
+integrand = quadrature.IntegrandModel(search_space.coordinates, np.exp(search_space.log_likelihoods / 3000))
 evidence, variance = integrand.quad(min_det=0)
 
 print(f"Standard GP Model evidence: {evidence} \u00B1 {2 * np.sqrt(variance)}")
 
-sq_integrand = quadrature.SqIntegrandModel(search_space.coordinates, np.exp(search_space.log_likelihoods / 5000))
+sq_integrand = quadrature.SqIntegrandModel(search_space.coordinates, np.exp(search_space.log_likelihoods / 3000))
 sq_evidence, sq_variance = sq_integrand.quad(min_det=0)
 
 print(f"WSABI Model evidence: {sq_evidence} \u00B1 {2 * np.sqrt(sq_variance)}")
@@ -57,3 +53,11 @@ for i, model in enumerate(search_space.models):
 print(f"Uniform weighted ensemble: {log_likelihood(uniform_ensemble, test_dataset) / n}")
 print(f"Bayesian quadrature ensemble: {log_likelihood(ensemble, test_dataset) / n}")
 print(f"Warped Bayesian quadrature ensemble: {log_likelihood(sq_ensemble, test_dataset) / n}")
+
+print("Test set accuracies:")
+for i, model in enumerate(search_space.models):
+    print(f"Model {i+1}: {accuracy(model, test_dataset) / n}")
+print(f"Uniform weighted ensemble: {accuracy(uniform_ensemble, test_dataset) / n}")
+print(f"Bayesian quadrature ensemble: {accuracy(ensemble, test_dataset) / n}")
+print(f"Warped Bayesian quadrature ensemble: {accuracy(sq_ensemble, test_dataset) / n}")
+

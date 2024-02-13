@@ -5,7 +5,7 @@ Vision transformer model
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from einops.layers.torch import Rearrange
+import einops.layers.torch
 from einops import repeat
 from mnistEnsembleExample.torchTrain import torchTrain
 
@@ -29,7 +29,7 @@ class VIT(nn.Module):
         num_patches = (image_size // patch_size) ** 2
         patch_dim = channels * patch_size**2
         self.to_patch_embedding = nn.Sequential(
-            Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1=patch_size, p2=patch_size),
+            einops.layers.torch.Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1=patch_size, p2=patch_size),
             nn.LayerNorm(patch_dim),
             nn.Linear(patch_dim, transformer_dim),
             nn.LayerNorm(transformer_dim))
@@ -44,7 +44,6 @@ class VIT(nn.Module):
             nn.Linear(mlp_dim, num_classes))
         if trained:
             self.load_state_dict(torch.load('C:/Users/gwhit/PycharmProjects/4YP/mnistEnsembleExample/states/vit.pth'))
-        self.eval()
 
     def forward(self, img):
         x = self.to_patch_embedding(img)

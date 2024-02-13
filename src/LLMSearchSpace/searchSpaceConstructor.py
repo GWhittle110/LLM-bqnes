@@ -4,7 +4,7 @@ Interface with LLM for construction of search space
 
 from anthropic import Anthropic, HUMAN_PROMPT, AI_PROMPT
 from dotenv import dotenv_values
-from typing import Iterable, Union, Tuple
+from typing import Iterable, Union
 import numpy as np
 import re
 from src.LLMSearchSpace.searchSpace import SearchSpace

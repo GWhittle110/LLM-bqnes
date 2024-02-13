@@ -155,7 +155,7 @@ class SqWarpedGP(GP):
         >>> y = np.sin(np.pi*x).reshape(-1)
         >>> parent_gp = GP(x, y)
         >>> parent_gp.plot()
-        >>> child_gp = SqWarpedGP(parent_gp = parent_gp, optimize_init=False)
+        >>> child_gp = SqWarpedGP(parent_gp=parent_gp, optimize_init=False)
         >>> child_gp.plot()
         """
 

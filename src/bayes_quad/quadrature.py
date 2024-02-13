@@ -2,7 +2,6 @@
 Integrand models equipped with Bayesian quadrature routines
 """
 
-import jax.numpy as jnp
 import numpy as np
 import tinygp
 from src.bayes_quad.gp import GP, SqWarpedGP
@@ -11,8 +10,8 @@ from scipy.stats import qmc
 
 class IntegrandModel:
 
-    def __init__(self, x_init: jnp.ndarray,
-                 y_init: jnp.ndarray,
+    def __init__(self, x_init: np.ndarray,
+                 y_init: np.ndarray,
                  kernel: tinygp.kernels.Kernel = tinygp.kernels.stationary.ExpSquared,
                  theta_init: dict = None,
                  optimize_init: bool = True,
@@ -152,8 +151,8 @@ class IntegrandModel:
 
 class SqIntegrandModel(IntegrandModel):
 
-    def __init__(self, x_init: jnp.ndarray,
-                 y_init: jnp.ndarray,
+    def __init__(self, x_init: np.ndarray,
+                 y_init: np.ndarray,
                  kernel: tinygp.kernels.Kernel = tinygp.kernels.stationary.ExpSquared,
                  theta_init: dict = None,
                  optimize_init: bool = True):
@@ -220,8 +219,8 @@ class SqIntegrandModel(IntegrandModel):
         while np.linalg.det(KXX) < min_det:
             KXX += min_det * np.eye(len(self.quad_points), len(self.quad_points))
         KXX_i = np.linalg.inv(KXX)
-        self.quad_weights = KXX_i @ KXxxX @ KXX_i
-        self.evidence = self.surrogate.epsilon + 0.5 * self.surrogate.y @ self.quad_weights @ self.surrogate.y
+        self.quad_weights = np.array(KXX_i @ KXxxX @ KXX_i)
+        self.evidence = np.array(self.surrogate.epsilon + 0.5 * self.surrogate.y @ self.quad_weights @ self.surrogate.y)
 
         # Down sample for calculating uncertainty efficiently
         reduction_interval = int(np.floor(np.sqrt(len(coords))).item())
@@ -237,6 +236,6 @@ class SqIntegrandModel(IntegrandModel):
                            for xi, Pxi in zip(coords_reduced, prior_reduced))) * Pxj
                       for xj, Pxj in zip(coords_reduced, prior_reduced))
         variance_weights = KXX_i @ (KxyxXyX - KXxxX @ KXX_i @ KXxxX) @ KXX_i
-        self.variance = self.surrogate.y @ variance_weights @ self.surrogate.y
+        self.variance = np.array(self.surrogate.y @ variance_weights @ self.surrogate.y)
 
         return self.evidence, self.variance
