@@ -9,18 +9,20 @@ from src.utils.logLikelihood import log_likelihood
 
 class SearchSpace:
 
-    def __init__(self, models: list, coordinates: np.ndarray, train_dataset: Dataset = None):
+    def __init__(self, models: list, coordinates: np.ndarray, train_dataset: Dataset = None, log_offset: float = None):
         """
         Keeps track of models, their respective coordinates and likelihoods once calculated. Also manages dataset for
         evaluating likelihoods.
         :param models: List of models
         :param coordinates: Array of coordinates, with order corresponding to that of models
         :param train_dataset: Dataloader for training dataset
+        :param log_offset: Offset on log likelihood values. If None, will take the first query result as the offset
         """
         self.coordinates = coordinates
         self.models = models
         self.log_likelihoods = np.nan * np.ones(len(coordinates))
         self.dataset = train_dataset
+        self.log_offset = log_offset
 
     def query_log_likelihood(self, index: int = None, coordinate: np.ndarray = None, batch_size: int = 100) -> float:
         """
@@ -40,7 +42,9 @@ class SearchSpace:
         model = self.models[index]
         ll = log_likelihood(model, self.dataset, batch_size)
 
-        self.log_likelihoods[index] = ll
-        return ll
+        if self.log_offset is None:
+            self.log_offset = ll
+        self.log_likelihoods[index] = ll - self.log_offset
+        return ll - self.log_offset
 
             

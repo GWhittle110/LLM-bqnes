@@ -239,3 +239,5 @@ class SqIntegrandModel(IntegrandModel):
         self.variance = np.array(self.surrogate.y @ variance_weights @ self.surrogate.y)
 
         return self.evidence, self.variance
+
+

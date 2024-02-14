@@ -34,12 +34,12 @@ search_space = search_space_constructor.construct_search_space(models, "Image cl
 for coordinate in search_space.coordinates:
     search_space.query_log_likelihood(coordinate=coordinate)
 
-integrand = quadrature.IntegrandModel(search_space.coordinates, np.exp(search_space.log_likelihoods / 3000))
+integrand = quadrature.IntegrandModel(search_space.coordinates, np.exp(search_space.log_likelihoods / 5000))
 evidence, variance = integrand.quad(min_det=0)
 
 print(f"Standard GP Model evidence: {evidence} \u00B1 {2 * np.sqrt(variance)}")
 
-sq_integrand = quadrature.SqIntegrandModel(search_space.coordinates, np.exp(search_space.log_likelihoods / 3000))
+sq_integrand = quadrature.SqIntegrandModel(search_space.coordinates, np.exp(search_space.log_likelihoods / 5000))
 sq_evidence, sq_variance = sq_integrand.quad(min_det=0)
 
 print(f"WSABI Model evidence: {sq_evidence} \u00B1 {2 * np.sqrt(sq_variance)}")
@@ -48,6 +48,8 @@ uniform_ensemble = Ensemble(search_space.models, np.ones_like(integrand.quad_wei
                             np.ones_like(integrand.surrogate.y), 1)
 ensemble = Ensemble(search_space.models, integrand.quad_weights, integrand.surrogate.y, evidence)
 sq_ensemble = SqEnsemble(search_space.models, sq_integrand.quad_weights, sq_integrand.surrogate.y_unwarped, sq_evidence)
+diag_sq_ensemble = DiagSqEnsemble(search_space.models, sq_integrand.quad_weights, sq_integrand.surrogate.y_unwarped)
+
 n = len(test_dataset)
 
 print("Test set mean log likelihoods:")
@@ -56,6 +58,7 @@ for i, model in enumerate(search_space.models):
 print(f"Uniform weighted ensemble: {log_likelihood(uniform_ensemble, test_dataset) / n}")
 print(f"Bayesian quadrature ensemble: {log_likelihood(ensemble, test_dataset) / n}")
 print(f"Warped Bayesian quadrature ensemble: {log_likelihood(sq_ensemble, test_dataset) / n}")
+print(f"Diagonal Warped Bayesian quadrature ensemble: {log_likelihood(sq_ensemble, test_dataset) / n}")
 
 print("Test set accuracies:")
 for i, model in enumerate(search_space.models):
@@ -63,4 +66,4 @@ for i, model in enumerate(search_space.models):
 print(f"Uniform weighted ensemble: {accuracy(uniform_ensemble, test_dataset) / n}")
 print(f"Bayesian quadrature ensemble: {accuracy(ensemble, test_dataset) / n}")
 print(f"Warped Bayesian quadrature ensemble: {accuracy(sq_ensemble, test_dataset) / n}")
-
+print(f"Diagonal Warped Bayesian quadrature ensemble: {accuracy(sq_ensemble, test_dataset) / n}")

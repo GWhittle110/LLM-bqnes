@@ -15,8 +15,8 @@ class Ensemble(torch.nn.Module):
         """
         :param members: Constituent models
         :param quad_weights: Quadrature scheme weights
-        :param likelihoods: Model training likelihoods
-        :param evidence: Ensemble evidence
+        :param likelihoods: Model training likelihoods, with log offset applied
+        :param evidence: Ensemble evidence, with log offset applied
         """
         super().__init__()
         self.members = members
@@ -90,3 +90,19 @@ class SqEnsemble(Ensemble):
                                0.5 * torch.einsum('...i, ij, ...j -> ...', z, torch.tensor(self.quad_weights), z))
                                / self.evidence)
         return ensemble_prediction
+
+
+class DiagSqEnsemble(Ensemble):
+    """
+    Ensemble using diagonal of quad weights from square root warped Bayesian Quadrature
+    """
+
+    def __init__(self, members, sq_quad_weights: np.ndarray, likelihoods: np.ndarray):
+        """
+        :param members: Constituent models
+        :param quad_weights: Quadrature scheme weights (matrix)
+        :param likelihoods: Model training likelihoods, with log offset applied
+        """
+        quad_weights = sq_quad_weights.diagonal() / sq_quad_weights.trace()
+        evidence = quad_weights @ likelihoods
+        super().__init__(members, quad_weights, likelihoods, evidence)
