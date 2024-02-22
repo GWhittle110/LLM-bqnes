@@ -22,3 +22,15 @@ def log_likelihood(model, dataset: Dataset, batch_size: int = 100) -> float:
         ll = -sum(loss(torch.tensor(model(inputs)), targets).item() for inputs, targets in dataloader)
 
     return ll
+
+
+def log_likelihood_from_predictions(predictions, targets) -> float:
+    """
+    Calculate log likelihood of model predictions
+    :param predictions: Predictions of model over dataset
+    :param targets: Targets from dataset
+    :return: Log likelihood over dataset
+    """
+    loss = CrossEntropyLoss(reduction='sum')
+    ll = -loss(torch.tensor(predictions, requires_grad=False), torch.tensor(targets, requires_grad=False)).item()
+    return ll

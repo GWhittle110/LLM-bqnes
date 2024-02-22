@@ -13,8 +13,9 @@ class GP:
 
     def __init__(self, x_init: jnp.ndarray,
                  y_init: jnp.ndarray,
-                 kernel: tinygp.kernels.Kernel = tinygp.kernels.stationary.ExpSquared,
+                 kernel: type = tinygp.kernels.stationary.ExpSquared,
                  theta_init: dict = None,
+                 theta_anisotropic: bool = True,
                  optimize_init: bool = True):
         """
         Gaussian process model
@@ -23,6 +24,7 @@ class GP:
         :param kernel: GP kernel
         :param theta_init: Initial values for kernel hyperparameters. Dict with fields "log_scale", "log_amp" and
         "log_jitter"
+        :param theta_anisotropic: Whether to use anisotropic length scale for kernel
         :param optimize_init: If true, optimize hyperparameters on initial data. Forced to False if no initial data
         """
 
@@ -32,12 +34,19 @@ class GP:
 
         self.kernel = kernel
 
+        self.default_theta = {"log_scale": np.float64(-1),
+                              "log_amp": np.float64(0),
+                              "log_jitter": np.float64(0)}
+
         if theta_init is None:
-            self.theta = {"log_scale": -1 * np.ones(self.ndim),
-                          "log_amp": np.float64(0),
-                          "log_jitter": np.float64(0)}
+            self.theta = self.default_theta
         else:
             self.theta = theta_init
+
+        if theta_anisotropic and len(self.theta["log_scale"].shape) == 0:
+            self.theta["log_scale"] *= np.ones(self.ndim)
+
+        self.default_theta = self.theta
 
         if optimize_init and x_init is not None:
             self.optimize_theta()
@@ -72,7 +81,7 @@ class GP:
             theta = self.theta
         return -self.build_gp(theta).log_probability(self.y)
 
-    def optimize_theta(self, La: float = 0., Ls: float = 0., Lj: float = 0.):
+    def optimize_theta(self, La: float = 0.0001, Ls: float = 0., Lj: float = 0.0001):
         """
         Optimize hyperparameters over current data
         :param La: weighting of regularisation term on log amplitude (keeps amplitude close to 1)
@@ -83,7 +92,7 @@ class GP:
             return (self.negative_log_likelihood(theta) + La * theta["log_amp"] ** 2 + Lj * theta["log_jitter"] ** 2 +
                     Ls * jnp.exp(theta["log_scale"]) @ jnp.exp(theta["log_scale"]))
         minimizer = jaxopt.ScipyMinimize(fun=fun)
-        self.theta = minimizer.run(init_params=self.theta).params
+        self.theta = minimizer.run(init_params=self.default_theta).params
 
     def add_data(self, x, y, optimize_theta=True, *args, **kwargs):
         """
@@ -133,11 +142,12 @@ class GP:
 
 
 class SqWarpedGP(GP):
-    
+
     def __init__(self, x_init: jnp.ndarray = None,
                  y_init: jnp.ndarray = None,
-                 kernel: tinygp.kernels.Kernel = tinygp.kernels.stationary.ExpSquared,
+                 kernel: type = tinygp.kernels.stationary.ExpSquared,
                  theta_init: dict = None,
+                 theta_anisotropic: bool = True,
                  optimize_init: bool = True,
                  parent_gp: GP = None):
         """
@@ -147,6 +157,7 @@ class SqWarpedGP(GP):
         :param kernel: GP kernel
         :param theta_init: Initial values for kernel hyperparameters. Dict with fields "log_scale", "log_amp" and
         "log_jitter"
+        :param theta_anisotropic: Whether to use anisotropic length scale for kernel
         :param optimize_init: If true, optimize hyperparameters on initial data. Forced to False if no initial data
         :param parent_gp: Use in place of x_init and y_init arguments. Takes a standard GP and converts it to a square
         warped GP
@@ -165,9 +176,9 @@ class SqWarpedGP(GP):
             theta_init = parent_gp.theta
 
         self.y_unwarped = y_init
-        self.epsilon = 0.8 * jnp.min(self.y_unwarped)
-        y = jnp.sqrt(2 * (self.y_unwarped - self.epsilon))
-        super().__init__(x_init, y, kernel, theta_init, optimize_init)
+        self.epsilon = 0.8 * np.min(self.y_unwarped)
+        y = np.sqrt(2 * (self.y_unwarped - self.epsilon))
+        super().__init__(x_init, y, kernel, theta_init, theta_anisotropic, optimize_init)
 
     def add_data(self, x, y, *args, **kwargs):
         """
@@ -176,9 +187,9 @@ class SqWarpedGP(GP):
         :param y: np.ndarray, evaluation value
         """
         self.x = np.vstack((self.x, x))
-        self.y_unwarped = np.hstack((self.y_unwarped, y))
-        self.epsilon = 0.8 * jnp.min(self.y_unwarped)
-        self.y = jnp.sqrt(2 * (self.y_unwarped - self.epsilon))
+        self.y_unwarped = np.hstack((self.y, y))
+        self.epsilon = 0.8 * np.min(self.y_unwarped)
+        self.y = np.sqrt(2 * (self.y_unwarped - self.epsilon))
         self.optimize_theta(*args, **kwargs)
 
     def predict(self, x):

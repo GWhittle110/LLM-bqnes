@@ -2,8 +2,9 @@
 Classes to handle ensemble of models
 """
 
-import numpy as np
+import pandas as pd
 import torch
+from src.bayes_quad.quadrature import *
 
 
 class Ensemble(torch.nn.Module):
@@ -11,18 +12,16 @@ class Ensemble(torch.nn.Module):
     Standard ensemble deriving from Bayesian Quadrature
     """
 
-    def __init__(self, members, quad_weights: np.ndarray, likelihoods: np.ndarray, evidence: float):
+    def __init__(self, models, integrand: IntegrandModel):
         """
-        :param members: Constituent models
-        :param quad_weights: Quadrature scheme weights
-        :param likelihoods: Model training likelihoods, with log offset applied
-        :param evidence: Ensemble evidence, with log offset applied
+        :param models: Constituent models
+        :param integrand: Integrand model from which the ensemble is derived
         """
         super().__init__()
-        self.members = members
-        self.quad_weights = quad_weights.astype(np.float64)
-        self.likelihoods = likelihoods.astype(np.float64)
-        self.evidence = evidence
+        self.models = models
+        self.quad_weights = integrand.quad_weights.astype(np.float64)
+        self.likelihoods = integrand.surrogate.y.astype(np.float64)
+        self.evidence = integrand.evidence
         self.weights = self.quad_weights * self.likelihoods / self.evidence
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -43,7 +42,17 @@ class Ensemble(torch.nn.Module):
         >>> print(ensemble(x1))
         >>> print(ensemble(x2))
         """
-        member_predictions = torch.stack([model(x) for model in self.members], -1)
+        member_predictions = torch.stack([model(x) for model in self.models], -1)
+        return member_predictions @ self.weights
+
+    def forward_from_predictions(self, predictions_df: pd.DataFrame) -> torch.Tensor:
+        """
+        Calculate ensemble predictions from predictions of constituent models
+        :param predictions_df: Dataset containing predictions of all possible ensemble models, keyed on model name
+        :return: tensor of model predictions
+        """
+        member_predictions = torch.stack([torch.tensor(predictions_df[type(model).__name__])
+                                          for model in self.models], -1)
         return member_predictions @ self.weights
 
 
@@ -52,14 +61,12 @@ class SqEnsemble(Ensemble):
     Ensemble deriving from square root warped Bayesian Quadrature
     """
 
-    def __init__(self, members, quad_weights: np.ndarray, likelihoods: np.ndarray, evidence: float):
+    def __init__(self, models, integrand: SqIntegrandModel):
         """
-        :param members: Constituent models
-        :param quad_weights: Quadrature scheme weights
-        :param likelihoods: Model training likelihoods
-        :param evidence: Ensemble evidence
+        :param models: Constituent models
+        :param integrand: Integrand from which ensemble is derived
         """
-        super().__init__(members, quad_weights, likelihoods, evidence)
+        super().__init__(models, integrand)
         self.weights = None
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -82,12 +89,28 @@ class SqEnsemble(Ensemble):
         >>> print(ensemble(x2))
 
         """
-        member_predictions = torch.stack([model(x) for model in self.members], -1)
+        member_predictions = torch.stack([model(x) for model in self.models], -1)
         numerator_integrand = member_predictions * self.likelihoods
         epsilon = 0.8 * torch.min(numerator_integrand, dim=-1).values
         z = torch.sqrt(2 * (numerator_integrand - epsilon.unsqueeze(-1)))
         ensemble_prediction = ((epsilon +
                                0.5 * torch.einsum('...i, ij, ...j -> ...', z, torch.tensor(self.quad_weights), z))
+                               / self.evidence)
+        return ensemble_prediction
+
+    def forward_from_predictions(self, predictions_df: pd.DataFrame) -> torch.Tensor:
+        """
+        Calculate ensemble predictions from predictions of constituent models
+        :param predictions_df: Dataset containing predictions of all possible ensemble models, keyed on model name
+        :return: tensor of model predictions
+        """
+        member_predictions = torch.stack([torch.tensor(predictions_df[type(model).__name__])
+                                          for model in self.models], -1)
+        numerator_integrand = member_predictions * self.likelihoods
+        epsilon = 0.8 * torch.min(numerator_integrand, dim=-1).values
+        z = torch.sqrt(2 * (numerator_integrand - epsilon.unsqueeze(-1)))
+        ensemble_prediction = ((epsilon +
+                                0.5 * torch.einsum('...i, ij, ...j -> ...', z, torch.tensor(self.quad_weights), z))
                                / self.evidence)
         return ensemble_prediction
 
@@ -97,12 +120,30 @@ class DiagSqEnsemble(Ensemble):
     Ensemble using diagonal of quad weights from square root warped Bayesian Quadrature
     """
 
-    def __init__(self, members, sq_quad_weights: np.ndarray, likelihoods: np.ndarray):
+    def __init__(self, models, integrand: SqIntegrandModel):
         """
-        :param members: Constituent models
-        :param quad_weights: Quadrature scheme weights (matrix)
-        :param likelihoods: Model training likelihoods, with log offset applied
+        :param models: Constituent models
+        :param integrand: Integrand from which the ensemble is derived. In this case the diag sq ensemble is initialised
+        from an equivalent SqIntegrandModel, not a DiagSqIntegrandModel
         """
-        quad_weights = sq_quad_weights.diagonal() / sq_quad_weights.trace()
-        evidence = quad_weights @ likelihoods
-        super().__init__(members, quad_weights, likelihoods, evidence)
+        torch.nn.Module.__init__(self)
+        self.models = models
+        self.quad_weights = integrand.quad_weights.diagonal() / integrand.quad_weights.trace()
+        self.likelihoods = integrand.surrogate.y
+        self.evidence = self.quad_weights @ self.likelihoods
+        self.weights = self.quad_weights * self.likelihoods / self.evidence
+
+
+class UniformEnsemble(Ensemble):
+    """
+    Ensemble using uniform weights
+    """
+
+    def __init__(self, models):
+        """
+        Ensemble using uniform weights
+        :param models: Constituent models
+        """
+        torch.nn.Module.__init__(self)
+        self.models = models
+        self.weights = np.ones(len(models)) / len(models)

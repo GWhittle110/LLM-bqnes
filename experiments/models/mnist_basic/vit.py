@@ -43,7 +43,7 @@ class VIT(nn.Module):
             nn.GELU(),
             nn.Linear(mlp_dim, num_classes))
         if trained:
-            self.load_state_dict(torch.load('C:/Users/gwhit/PycharmProjects/4YP/mnistEnsembleExample/states/vit.pth'))
+            self.load_state_dict(torch.load('C:\\Users\\gwhit\PycharmProjects\\4YP\experiments\\models\\mnist_basic\\states\\vit.pth'))
 
     def forward(self, img):
         x = self.to_patch_embedding(img)

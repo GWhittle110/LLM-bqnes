@@ -14,7 +14,8 @@ class IntegrandModel:
                  y_init: np.ndarray,
                  kernel: tinygp.kernels.Kernel = tinygp.kernels.stationary.ExpSquared,
                  theta_init: dict = None,
-                 optimize_init: bool = True,
+                 theta_anisotropic: bool = True,
+                 optimize_init: bool = False,
                  surrogate: type = GP):
         """
         Standard Bayesian quadrature
@@ -23,11 +24,12 @@ class IntegrandModel:
         :param kernel: Surrogate GP kernel, defaults to RBF Kernel
         :param theta_init: Initial values for kernel hyperparameters. Dict with fields "log_scale", "log_amp" and
         "log_jitter"
+        :param theta_anisotropic: Whether to use anisotropic length scale for kernel
         :param optimize_init: If true, optimize hyperparameters on initial data. Forced to False if no initial data
         :param surrogate: Class of surrogate model
         """
 
-        self.surrogate = surrogate(x_init, y_init, kernel, theta_init, optimize_init)
+        self.surrogate = surrogate(x_init, y_init, kernel, theta_init, theta_anisotropic, optimize_init)
         self.quad_weights = None
         self.quad_points = None
         self.evidence = None
@@ -53,7 +55,7 @@ class IntegrandModel:
         Example, 1d:
         >>> x = np.random.rand(5).reshape(-1,1)
         >>> y = np.sin(np.pi*x).reshape(-1)
-        >>> integrand = IntegrandModel(x, y)
+        >>> integrand = IntegrandModel(x, y, optimize_init=True)
         >>> integrand.surrogate.plot()
         >>> coords = np.linspace(0, 1, 100).reshape(-1, 1)
         >>> val, var = integrand.discrete_quad(coords)
@@ -63,7 +65,7 @@ class IntegrandModel:
         >>> x = np.random.rand(5).reshape(-1,1)
         >>> x = np.vstack((x, x))
         >>> y = np.sin(np.pi*x).reshape(-1) + 0.05 * np.random.randn(len(x))
-        >>> integrand = IntegrandModel(x, y)
+        >>> integrand = IntegrandModel(x, y, optimize_init=True)
         >>> integrand.surrogate.plot()
         >>> coords = np.linspace(0, 1, 100).reshape(-1, 1)
         >>> val, var = integrand.discrete_quad(coords)
@@ -72,7 +74,7 @@ class IntegrandModel:
         Example, 2d
         >>> x = np.random.rand(5, 2)
         >>> y = np.exp(-(x**2).sum(axis=1))
-        >>> integrand = IntegrandModel(x, y)
+        >>> integrand = IntegrandModel(x, y, optimize_init=True)
         >>> coords_x0 = np.linspace(0, 1, 10)
         >>> coords_x1 = np.linspace(0, 1, 10)
         >>> coords_meshgrid = np.meshgrid(coords_x0, coords_x1)
@@ -118,7 +120,7 @@ class IntegrandModel:
         Example, 1d:
         >>> x = np.random.rand(5).reshape(-1,1)
         >>> y = np.sin(np.pi*x).reshape(-1)
-        >>> integrand = IntegrandModel(x, y)
+        >>> integrand = IntegrandModel(x, y, optimize_init=True)
         >>> integrand.surrogate.plot()
         >>> val, var = integrand.quad(1000)
         >>> print(f'Summation value: {val}, Variance: {var}')
@@ -127,7 +129,7 @@ class IntegrandModel:
         >>> x = np.random.rand(5).reshape(-1,1)
         >>> x = np.vstack((x, x))
         >>> y = np.sin(np.pi*x).reshape(-1) + 0.05 * np.random.randn(len(x))
-        >>> integrand = IntegrandModel(x, y)
+        >>> integrand = IntegrandModel(x, y, optimize_init=True)
         >>> integrand.surrogate.plot()
         >>> val, var = integrand.quad(1000)
         >>> print(f'Summation value: {val}, Variance: {var}')
@@ -135,7 +137,7 @@ class IntegrandModel:
         Example, 2d
         >>> x = np.random.rand(5, 2)
         >>> y = np.exp(-(x**2).sum(axis=1))
-        >>> integrand = IntegrandModel(x, y)
+        >>> integrand = IntegrandModel(x, y, optimize_init=True)
         >>> val, var = integrand.quad(1000)
         >>> print(f'Summation value: {val}, Variance: {var}')
         >>> print(f'Quadrature points: {integrand.quad_points.reshape(-1)}, Weights: {integrand.quad_weights}')
@@ -150,11 +152,15 @@ class IntegrandModel:
 
 
 class SqIntegrandModel(IntegrandModel):
+    """
+    Linearised square root warped Bayesian quadrature
+    """
 
     def __init__(self, x_init: np.ndarray,
                  y_init: np.ndarray,
                  kernel: tinygp.kernels.Kernel = tinygp.kernels.stationary.ExpSquared,
                  theta_init: dict = None,
+                 theta_anisotropic: bool = True,
                  optimize_init: bool = True):
         """
         Linearised square root warped Bayesian quadrature
@@ -163,10 +169,11 @@ class SqIntegrandModel(IntegrandModel):
         :param kernel: Surrogate GP kernel, defaults to RBF Kernel
         :param theta_init: Initial values for kernel hyperparameters. Dict with fields "log_scale", "log_amp" and
         "log_jitter"
+        :param theta_anisotropic: Whether to use anisotropic length scale for kernel
         :param optimize_init: If true, optimize hyperparameters on initial data. Forced to False if no initial data
         """
 
-        super().__init__(x_init, y_init, kernel, theta_init, optimize_init, SqWarpedGP)
+        super().__init__(x_init, y_init, kernel, theta_init, theta_anisotropic, optimize_init, SqWarpedGP)
 
     def discrete_quad(self, coords: np.ndarray, prior: np.ndarray = None, min_det: float = 0.001):
         """
@@ -180,7 +187,7 @@ class SqIntegrandModel(IntegrandModel):
         Example, 1d:
         >>> x = np.random.rand(5).reshape(-1,1)
         >>> y = np.sin(np.pi*x).reshape(-1)
-        >>> integrand = SqIntegrandModel(x, y)
+        >>> integrand = SqIntegrandModel(x, y, optimize_init=True)
         >>> integrand.surrogate.plot()
         >>> coords = np.linspace(0, 1, 100).reshape(-1, 1)
         >>> val, var = integrand.discrete_quad(coords)
@@ -190,7 +197,7 @@ class SqIntegrandModel(IntegrandModel):
         >>> x = np.random.rand(5).reshape(-1,1)
         >>> x = np.vstack((x, x))
         >>> y = np.maximum(np.sin(np.pi*x).reshape(-1) + 0.05 * np.random.randn(len(x)), 0.1)
-        >>> integrand = SqIntegrandModel(x, y)
+        >>> integrand = SqIntegrandModel(x, y, optimize_init=True)
         >>> integrand.surrogate.plot()
         >>> coords = np.linspace(0, 1, 100).reshape(-1, 1)
         >>> val, var = integrand.discrete_quad(coords)
@@ -199,7 +206,7 @@ class SqIntegrandModel(IntegrandModel):
         Example, 2d
         >>> x = np.random.rand(5, 2)
         >>> y = np.exp(-(x**2).sum(axis=1))
-        >>> integrand = SqIntegrandModel(x, y)
+        >>> integrand = SqIntegrandModel(x, y, optimize_init=True)
         >>> coords_x0 = np.linspace(0, 1, 10)
         >>> coords_x1 = np.linspace(0, 1, 10)
         >>> coords_meshgrid = np.meshgrid(coords_x0, coords_x1)
@@ -241,3 +248,54 @@ class SqIntegrandModel(IntegrandModel):
         return self.evidence, self.variance
 
 
+class DiagSqIntegrandModel(SqIntegrandModel):
+    """
+    Modified linearised square root warped Bayesian quadrature
+    """
+
+    def discrete_quad(self, coords: np.ndarray, prior: np.ndarray = None, min_det: float = 0.001):
+        """
+        Calculate summation (as an expectation) and quadrature weights for used quadrature points for given coords. Uses
+        a constant mean function of the mean of the conditioning points. Also returns uncertainty in summation. To
+        compute explicit sum not as an expectation use a prior of ones. Uses normalised diagonal of SqIntegrandModel's
+        quad weights.
+        :param coords: points to sum over
+        :param prior: prior probabilities for each coord
+        :param min_det: minimum determinant of quadrature point correlation matrix, to stabilise inversion
+        :return: (summation, variance)
+        Example, 1d:
+        >>> x = np.random.rand(5).reshape(-1,1)
+        >>> y = np.sin(np.pi*x).reshape(-1)
+        >>> integrand = DiagSqIntegrandModel(x, y, optimize_init=True)
+        >>> integrand.surrogate.plot()
+        >>> coords = np.linspace(0, 1, 100).reshape(-1, 1)
+        >>> val, var = integrand.discrete_quad(coords)
+        >>> print(f'Summation value: {val}, Variance: {var}')
+        >>> print(f'Quadrature points: {integrand.quad_points.reshape(-1)}, Weights: {integrand.quad_weights}')
+        Example, 1d with repeated measurements and noise:
+        >>> x = np.random.rand(5).reshape(-1,1)
+        >>> x = np.vstack((x, x))
+        >>> y = np.maximum(np.sin(np.pi*x).reshape(-1) + 0.05 * np.random.randn(len(x)), 0.1)
+        >>> integrand = DiagSqIntegrandModel(x, y, optimize_init=True)
+        >>> integrand.surrogate.plot()
+        >>> coords = np.linspace(0, 1, 100).reshape(-1, 1)
+        >>> val, var = integrand.discrete_quad(coords)
+        >>> print(f'Summation value: {val}, Variance: {var}')
+        >>> print(f'Quadrature points: {integrand.quad_points.reshape(-1)}, Weights: {integrand.quad_weights}')
+        Example, 2d
+        >>> x = np.random.rand(5, 2)
+        >>> y = np.exp(-(x**2).sum(axis=1))
+        >>> integrand = DiagSqIntegrandModel(x, y, optimize_init=True)
+        >>> coords_x0 = np.linspace(0, 1, 10)
+        >>> coords_x1 = np.linspace(0, 1, 10)
+        >>> coords_meshgrid = np.meshgrid(coords_x0, coords_x1)
+        >>> coords = np.hstack((coords_meshgrid[0].reshape(-1,1), coords_meshgrid[1].reshape(-1,1)))
+        >>> val, var = integrand.discrete_quad(coords)
+        >>> print(f'Summation value: {val}, Variance: {var}')
+        >>> print(f'Quadrature points: {integrand.quad_points.reshape(-1)}, Weights: {integrand.quad_weights}')
+        """
+        super().discrete_quad(coords, prior, min_det)
+        quad_weights = self.quad_weights.diagonal() / self.quad_weights.trace()
+        self.quad_weights = quad_weights
+        self.evidence = quad_weights @ self.surrogate.y_unwarped
+        return self.evidence, self.variance

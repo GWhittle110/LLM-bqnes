@@ -11,6 +11,7 @@ from src.LLMSearchSpace.searchSpace import SearchSpace
 import inspect
 from torch.utils.data import Dataset
 import logging
+from pandas import DataFrame
 
 
 class AnthropicSearchSpaceConstructor(Anthropic):
@@ -24,8 +25,7 @@ class AnthropicSearchSpaceConstructor(Anthropic):
                  max_tokens: int = 10000,
                  model: str = "claude-2.1",
                  examples: Union[Iterable[str], str] = None,
-                 use_default_examples: bool = True,
-                 *args, **kwargs) -> None:
+                 *args, **kwargs):
 
         f"""
         Constructs search space object according to specifications
@@ -99,7 +99,6 @@ class AnthropicSearchSpaceConstructor(Anthropic):
                                case restart from task 2. Task 6: Check the produced coordinates are uncorrelated, and \
                                if they are restart from task 2 with different features. "
 
-
         if isinstance(examples, str):
             self.user_examples = examples
         elif examples is not None:
@@ -107,22 +106,23 @@ class AnthropicSearchSpaceConstructor(Anthropic):
         else:
             self.user_examples = ""
 
-        if use_default_examples:
-            init_prompt = "".join((self.system_prompt, self.default_examples, self.user_examples))
-        else:
-            init_prompt = "".join((self.system_prompt, self.user_examples))
+        init_prompt = "".join((self.system_prompt, self.user_examples))
 
-        if use_default_examples or examples is not None:
+        if examples is not None:
             setup = self.completions.create(model=self.model, max_tokens_to_sample=self.max_tokens, prompt=init_prompt)
             self.starter_prompt = init_prompt + setup.completion
         else:
             self.starter_prompt = init_prompt
 
-    def construct_search_space(self, models: list[callable], task: str, dataset: Dataset) -> SearchSpace:
+    def construct_search_space(self, models: list[callable], task: str, dataset: Dataset,
+                               predictions: DataFrame = None, reduction_factor: float = 1, _run=None) -> SearchSpace:
         """
         :param models: list containing model objects
         :param task: str detailing the task eg "image classification"
         :param dataset: Training dataset for models
+        :param predictions: Dataframe containing model predictions keyed on model name and targets
+        :param reduction_factor: Factor to divide log likelihood values by (shrinks likelihoods towards 1)
+        :param _run: Sacred run object
         :return: SearchSpace object containing coordinates, models and dataset
         """
 
@@ -144,10 +144,10 @@ class AnthropicSearchSpaceConstructor(Anthropic):
         completion = self.completions.create(model=self.model, max_tokens_to_sample=self.max_tokens,
                                              prompt=complete_prompt)
         response = completion.completion
-        logger = logging.getLogger("claude")
-        logging.basicConfig(level=20)
-        logger.info(response)
+        print(response)
         coord_strings = re.findall('<coordinate index=[0-9]+>(.+?)</coordinate>', response, flags=re.DOTALL)
         coords = np.array([[float(x) for x in re.findall('[0-9|.]+', coord)] for coord in coord_strings])
-        search_space = SearchSpace(models, coords, dataset)
+        if _run is not None:
+            _run.info["Coordinates"] = coords.tolist()
+        search_space = SearchSpace(models, coords, dataset, predictions=predictions, reduction_factor=reduction_factor)
         return search_space

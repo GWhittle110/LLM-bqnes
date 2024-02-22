@@ -4,22 +4,24 @@ XGBoost
 """
 
 import torch
+import torch.nn as nn
 import xgboost as xgb
 from mnistEnsembleExample.xgbTrain import xgbTrain
 
 
-class XGB:
+class XGB(nn.Module):
     """
     XGBoost model for MNIST, interface with pytorch
     """
     def __init__(self, trained=True, *args, **kwargs):
+        super().__init__()
         self.model = xgb.XGBClassifier(*args, **kwargs)
         if trained:
-            self.model.load_model("C:/Users/gwhit/PycharmProjects/4YP/mnistEnsembleExample/states/xgb.json")
+            self.model.load_model('C:\\Users\\gwhit\PycharmProjects\\4YP\experiments\\models\\mnist_basic\\states\\xgb.json')
 
-    def __call__(self, x):
+    def forward(self, x):
         x = x.reshape(-1, 784)
-        return torch.tensor(self.model.predict_proba(x.numpy()))
+        return torch.tensor(self.model.predict_proba(x.cpu().numpy()))
 
     def fit(self, X, Y):
         X = X.reshape(-1, 784)
