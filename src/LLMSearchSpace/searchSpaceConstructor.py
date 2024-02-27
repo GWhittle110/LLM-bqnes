@@ -148,6 +148,7 @@ class AnthropicSearchSpaceConstructor(Anthropic):
         coord_strings = re.findall('<coordinate index=[0-9]+>(.+?)</coordinate>', response, flags=re.DOTALL)
         coords = np.array([[float(x) for x in re.findall('[0-9|.]+', coord)] for coord in coord_strings])
         if _run is not None:
-            _run.info["Coordinates"] = coords.tolist()
+            _run.info["claude_response"] = response
+            _run.info["coordinates"] = coords.tolist()
         search_space = SearchSpace(models, coords, dataset, predictions=predictions, reduction_factor=reduction_factor)
         return search_space

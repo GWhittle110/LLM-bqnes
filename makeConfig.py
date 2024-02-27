@@ -25,8 +25,16 @@ config = {"candidate_directory": "mnist_basic",     # Name of directory inside e
                                "DiagSqIntegrandModel",
                                "DiagSqIntegrandModel",
                                "DiagSqIntegrandModel",
-                               "DiagSqIntegrandModel"],     # Integrand models to use
+                               "DiagSqIntegrandModel",
+                               "LinSqIntegrandModel",
+                               "LinSqIntegrandModel",
+                               "LinSqIntegrandModel",
+                               "LinSqIntegrandModel"],     # Integrand models to use
           "kernels": ["ExpSquared",
+                      "Exp",
+                      "Matern32",
+                      "Matern52",
+                      "ExpSquared",
                       "Exp",
                       "Matern32",
                       "Matern52",
@@ -45,7 +53,8 @@ config = {"candidate_directory": "mnist_basic",     # Name of directory inside e
           "optimize_init": False,                   # Whether to optimise model hyperparameters upon initialisation
           "n_acquire": 5,                           # Number of models to acquire for the ensemble (not including init model)
           "min_det": [0, 0.001],                    # Minimum correlation matrix determinant to allow during quadrature
-          "test_uniform": True                      # Whether to also test ensemble with uniform weights and same models
+          "test_uniform": True,                     # Whether to also test ensemble with uniform weights and same models
+          "nbins": 10                               # Number of bins to use when computing expected calibration error
           }
 
 stream = open(f"experiments\\configs\\{config_name}.yaml", "w+")

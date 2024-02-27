@@ -299,3 +299,55 @@ class DiagSqIntegrandModel(SqIntegrandModel):
         self.quad_weights = quad_weights
         self.evidence = quad_weights @ self.surrogate.y_unwarped
         return self.evidence, self.variance
+
+
+class LinSqIntegrandModel(SqIntegrandModel):
+    """
+    Linearised posterior model from linearised square root warped Bayesian quadrature
+    """
+
+    def discrete_quad(self, coords: np.ndarray, prior: np.ndarray = None, min_det: float = 0.001):
+        """
+        Calculate summation (as an expectation) and quadrature weights for used quadrature points for given coords. Uses
+        a constant mean function of the mean of the conditioning points. Also returns uncertainty in summation. To
+        compute explicit sum not as an expectation use a prior of ones. Uses linearised posterior of SqIntegrandModel.
+        :param coords: points to sum over
+        :param prior: prior probabilities for each coord
+        :param min_det: minimum determinant of quadrature point correlation matrix, to stabilise inversion
+        :return: (summation, variance)
+        Example, 1d:
+        >>> x = np.random.rand(5).reshape(-1,1)
+        >>> y = np.sin(np.pi*x).reshape(-1)
+        >>> integrand = DiagSqIntegrandModel(x, y, optimize_init=True)
+        >>> integrand.surrogate.plot()
+        >>> coords = np.linspace(0, 1, 100).reshape(-1, 1)
+        >>> val, var = integrand.discrete_quad(coords)
+        >>> print(f'Summation value: {val}, Variance: {var}')
+        >>> print(f'Quadrature points: {integrand.quad_points.reshape(-1)}, Weights: {integrand.quad_weights}')
+        Example, 1d with repeated measurements and noise:
+        >>> x = np.random.rand(5).reshape(-1,1)
+        >>> x = np.vstack((x, x))
+        >>> y = np.maximum(np.sin(np.pi*x).reshape(-1) + 0.05 * np.random.randn(len(x)), 0.1)
+        >>> integrand = DiagSqIntegrandModel(x, y, optimize_init=True)
+        >>> integrand.surrogate.plot()
+        >>> coords = np.linspace(0, 1, 100).reshape(-1, 1)
+        >>> val, var = integrand.discrete_quad(coords)
+        >>> print(f'Summation value: {val}, Variance: {var}')
+        >>> print(f'Quadrature points: {integrand.quad_points.reshape(-1)}, Weights: {integrand.quad_weights}')
+        Example, 2d
+        >>> x = np.random.rand(5, 2)
+        >>> y = np.exp(-(x**2).sum(axis=1))
+        >>> integrand = DiagSqIntegrandModel(x, y, optimize_init=True)
+        >>> coords_x0 = np.linspace(0, 1, 10)
+        >>> coords_x1 = np.linspace(0, 1, 10)
+        >>> coords_meshgrid = np.meshgrid(coords_x0, coords_x1)
+        >>> coords = np.hstack((coords_meshgrid[0].reshape(-1,1), coords_meshgrid[1].reshape(-1,1)))
+        >>> val, var = integrand.discrete_quad(coords)
+        >>> print(f'Summation value: {val}, Variance: {var}')
+        >>> print(f'Quadrature points: {integrand.quad_points.reshape(-1)}, Weights: {integrand.quad_weights}')
+        """
+        super().discrete_quad(coords, prior, min_det)
+        quad_weights = self.quad_weights.sum(1)
+        self.quad_weights = quad_weights
+        self.evidence = self.surrogate.epsilon * (1 - quad_weights.sum()) + quad_weights @ self.surrogate.y_unwarped
+        return self.evidence, self.variance

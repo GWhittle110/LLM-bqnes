@@ -8,6 +8,7 @@ from src.bayes_quad import *
 from src.utils.logLikelihood import log_likelihood, log_likelihood_from_predictions
 from src.ensemble import *
 from src.utils.loadModels import load_models
+from src.utils.expectedCalibrationError import expected_calibration_error, expected_calibration_error_from_predictions
 from src.utils.accuracy import accuracy, accuracy_from_predictions
 from tinygp.kernels.stationary import Exp, ExpSquared, Matern32, Matern52
 import logging
@@ -138,7 +139,8 @@ def run_experiment(_config=None, _run=None):
     # initialise the integrands requested as a dict keyed on the integrand model - kernel pairs
     integrand_models_dict = {"IntegrandModel": quadrature.IntegrandModel,
                              "SqIntegrandModel": quadrature.SqIntegrandModel,
-                             "DiagSqIntegrandModel": quadrature.DiagSqIntegrandModel}
+                             "DiagSqIntegrandModel": quadrature.DiagSqIntegrandModel,
+                             "LinSqIntegrandModel": quadrature.LinSqIntegrandModel}
 
     kernels_dict = {"Exp": Exp,
                     "ExpSquared": ExpSquared,
@@ -183,58 +185,72 @@ def run_experiment(_config=None, _run=None):
         # Construct ensemble
         ensemble_dict = {"IntegrandModel": Ensemble,
                          "SqIntegrandModel": SqEnsemble,
-                         "DiagSqIntegrandModel": Ensemble}
+                         "DiagSqIntegrandModel": Ensemble,
+                         "LinSqIntegrandModel": LinSqEnsemble}
 
         ensemble = ensemble_dict[name[0]](models_used, integrand)
+        data_dict["ensemble_weights"] = ensemble.weights.tolist()
+        if name[0] == "LinIntegrandModel":
+            data_dict["ensemble_offset"] = ensemble.offset.tolist()
 
-        # Evaluate ensemble loss and accuracy
+        # Evaluate ensemble log likelihood, accuracy and expected calibration error
         if test_predictions is not None:
-            n = len(test_predictions)
-            ensemble_loss = -log_likelihood_from_predictions(
-                ensemble.forward_from_predictions(test_predictions),
-                test_predictions["Target"]) / n
-            data_dict["ensemble_loss"] = ensemble_loss
-            logger.info(f"Ensemble loss: {ensemble_loss}")
-            ensemble_accuracy = accuracy_from_predictions(
-                ensemble.forward_from_predictions(test_predictions),
-                test_predictions["Target"])
+            predictions = ensemble.forward_from_predictions(test_predictions).numpy()
+            ensemble_log_likelihood = log_likelihood_from_predictions(predictions, test_predictions["Target"])
+            data_dict["ensemble_log_likelihood"] = ensemble_log_likelihood
+            logger.info(f"Ensemble log likelihood: {ensemble_log_likelihood}")
+            ensemble_accuracy = accuracy_from_predictions(predictions, test_predictions["Target"])
             data_dict["ensemble_accuracy"] = ensemble_accuracy
             logger.info(f"Ensemble accuracy: {ensemble_accuracy} \n")
+            ensemble_ece = expected_calibration_error_from_predictions(predictions, test_predictions["Target"],
+                                                                       _config["nbins"])
+            data_dict["ensemble_expected_calibration_error"] = ensemble_ece
+            logger.info(f"Ensemble expected calibration error: {ensemble_ece} \n")
         else:
-            n = len(test_dataset)
-            ensemble_loss = -log_likelihood(ensemble, test_dataset, _config["test_batch_size"]) / n
-            data_dict["\n ensemble_loss"] = ensemble_loss
-            logger.info(f"Ensemble loss: {ensemble_loss}")
+            ensemble_log_likelihood = log_likelihood(ensemble, test_dataset, _config["test_batch_size"])
+            data_dict["\n ensemble_log_likelihood"] = ensemble_log_likelihood
+            logger.info(f"Ensemble log likelihood: {ensemble_log_likelihood}")
             ensemble_accuracy = accuracy(ensemble, test_dataset, _config["test_batch_size"])
             data_dict["ensemble_accuracy"] = ensemble_accuracy
             logger.info(f"Ensemble accuracy: {ensemble_accuracy} \n")
+            ensemble_ece = expected_calibration_error(ensemble, test_dataset, _config["nbins"],
+                                                      _config["test_batch_size"])
+            data_dict["ensemble_expected_calibration_error"] = ensemble_ece
+            logger.info(f"Ensemble expected calibration error: {ensemble_ece} \n")
 
         # If required, also evaluate ensemble with uniform weights
         if test_uniform:
             uniform_ensemble = UniformEnsemble(models_used)
             if test_predictions is not None:
-                uniform_ensemble_loss = -log_likelihood_from_predictions(
-                    uniform_ensemble.forward_from_predictions(test_predictions),
-                    test_predictions["Target"]) / n
-                data_dict["uniform_ensemble_loss"] = uniform_ensemble_loss
-                logger.info(f"Uniform ensemble loss: {uniform_ensemble_loss}")
-                uniform_ensemble_accuracy = accuracy_from_predictions(
-                    uniform_ensemble.forward_from_predictions(test_predictions),
-                    test_predictions["Target"])
+                uniform_predictions = uniform_ensemble.forward_from_predictions(test_predictions).numpy()
+                uniform_ensemble_log_likelihood = log_likelihood_from_predictions(uniform_predictions,
+                                                                                  test_predictions["Target"])
+                data_dict["uniform_ensemble_log_likelihood"] = uniform_ensemble_log_likelihood
+                logger.info(f"Uniform ensemble log likelihood: {uniform_ensemble_log_likelihood}")
+                uniform_ensemble_accuracy = accuracy_from_predictions(uniform_predictions, test_predictions["Target"])
                 data_dict["uniform_ensemble_accuracy"] = uniform_ensemble_accuracy
                 logger.info(f"Uniform ensemble accuracy: {uniform_ensemble_accuracy} \n")
+                uniform_ensemble_ece = expected_calibration_error_from_predictions(uniform_predictions,
+                                                                                   test_predictions["Target"],
+                                                                                   _config["nbins"])
+                data_dict["ensemble_expected_calibration_error"] = uniform_ensemble_ece
+                logger.info(f"Uniform ensemble expected calibration error: {uniform_ensemble_ece} \n")
             else:
-                n = len(test_dataset)
-                uniform_ensemble_loss = -log_likelihood(uniform_ensemble, test_dataset,
-                                                        _config["test_batch_size"]) / n
-                data_dict["uniform_ensemble_loss"] = uniform_ensemble_loss
-                logger.info(f"Uniform ensemble loss: {uniform_ensemble_loss}")
+                uniform_ensemble_log_likelihood = log_likelihood(uniform_ensemble, test_dataset,
+                                                                 _config["test_batch_size"])
+                data_dict["uniform_ensemble_log_likelihood"] = uniform_ensemble_log_likelihood
+                logger.info(f"Uniform ensemble log likelihood: {uniform_ensemble_log_likelihood}")
                 uniform_ensemble_accuracy = accuracy(uniform_ensemble, test_dataset,
                                                      _config["test_batch_size"])
                 data_dict["uniform_ensemble_accuracy"] = uniform_ensemble_accuracy
                 logger.info(f"Uniform ensemble accuracy: {uniform_ensemble_accuracy} \n")
+                uniform_ensemble_ece = expected_calibration_error(uniform_ensemble, test_dataset, _config["nbins"],
+                                                          _config["test_batch_size"])
+                data_dict["uniform_ensemble_expected_calibration_error"] = uniform_ensemble_ece
+                logger.info(f"Ensemble expected calibration error: {uniform_ensemble_ece} \n")
         else:
-            data_dict["ensemble_loss"] = None
-            data_dict["ensemble_accuracy"] = None
+            data_dict["uniform_ensemble_loss"] = None
+            data_dict["uniform_ensemble_accuracy"] = None
+            data_dict["uniform_ensemble_expected_calibration_error"] = None
 
         _run.info[name] = data_dict
