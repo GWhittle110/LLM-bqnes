@@ -6,7 +6,7 @@ Shallow CNN
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from mnistEnsembleExample.torchTrain import torchTrain
+from sandbox.mnistEnsembleExample.torchTrain import torchTrain
 
 
 class CNN1(nn.Module):
@@ -21,7 +21,7 @@ class CNN1(nn.Module):
         self.fc1 = nn.Linear(320, 50)
         self.fc2 = nn.Linear(50, 10)
         if trained:
-            self.load_state_dict(torch.load('C:/Users/gwhit/PycharmProjects/4YP/mnistEnsembleExample/states/cnn1.pth'))
+            self.load_state_dict(torch.load('/sandbox/mnistEnsembleExample/states/cnn1.pth'))
         self.eval()
 
     def forward(self, x):

@@ -3,7 +3,7 @@ from src.utils.expectedCalibrationError import expected_calibration_error_from_p
 import numpy as np
 
 
-class TestAccuracy(TestCase):
+class TestExpectedCalibrationError(TestCase):
 
     def test_expected_calibration_error_from_predictions(self):
         predictions = np.array([[0.15, 0.85], [0.75, 0.25], [0.65, 0.35], [0.85, 0.15]])

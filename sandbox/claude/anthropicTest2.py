@@ -121,7 +121,7 @@ class AnthropicSearchSpace(Anthropic):
 
 
 if __name__ == "__main__":
-    source_code = [open('testSourceCode/'+file).read() for file in os.listdir('../../misc/testSourceCode/')]
+    source_code = [open('testSourceCode/'+file).read() for file in os.listdir('../../../misc/testSourceCode/')]
     search_space = AnthropicSearchSpace(use_default_examples=False)
     search_space.construct_search_space(source_code)
 

@@ -6,7 +6,7 @@ Wider, deeper CNN
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from mnistEnsembleExample.torchTrain import torchTrain
+from sandbox.mnistEnsembleExample.torchTrain import torchTrain
 
 
 class CNN2(nn.Module):

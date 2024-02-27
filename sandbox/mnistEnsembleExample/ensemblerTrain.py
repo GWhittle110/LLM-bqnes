@@ -7,12 +7,12 @@ import numpy as np
 from scipy.optimize import minimize
 import torchvision
 import matplotlib.pyplot as plt
-from mnistEnsembleExample.cnn1 import CNN1
-from mnistEnsembleExample.cnn2 import CNN2
-from mnistEnsembleExample.mlp1 import MLP1
-from mnistEnsembleExample.mlp2 import MLP2
-from mnistEnsembleExample.vit import VIT
-from mnistEnsembleExample.xgb import XGB
+from sandbox.mnistEnsembleExample.cnn1 import CNN1
+from sandbox.mnistEnsembleExample.cnn2 import CNN2
+from sandbox.mnistEnsembleExample.mlp1 import MLP1
+from sandbox.mnistEnsembleExample.mlp2 import MLP2
+from sandbox.mnistEnsembleExample.vit import VIT
+from sandbox.mnistEnsembleExample.xgb import XGB
 
 torch.backends.cudnn.enabled = False
 torch.manual_seed(2)

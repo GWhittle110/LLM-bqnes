@@ -5,6 +5,7 @@ Classes to handle ensemble of models
 import pandas as pd
 import torch
 from src.bayes_quad.quadrature import *
+from src.utils.rebalanceProbabilities import rebalance_probabilities
 
 
 class Ensemble(torch.nn.Module):
@@ -43,7 +44,7 @@ class Ensemble(torch.nn.Module):
         >>> print(ensemble(x2))
         """
         member_predictions = torch.stack([model(x) for model in self.models], -1)
-        return member_predictions @ self.weights
+        return rebalance_probabilities(member_predictions @ self.weights)
 
     def forward_from_predictions(self, predictions_df: pd.DataFrame) -> torch.Tensor:
         """
@@ -53,7 +54,7 @@ class Ensemble(torch.nn.Module):
         """
         member_predictions = torch.stack([torch.tensor(predictions_df[type(model).__name__])
                                           for model in self.models], -1)
-        return member_predictions @ self.weights
+        return rebalance_probabilities(member_predictions @ self.weights)
 
 
 class SqEnsemble(Ensemble):
@@ -93,10 +94,8 @@ class SqEnsemble(Ensemble):
         numerator_integrand = member_predictions * self.likelihoods
         epsilon = 0.8 * torch.min(numerator_integrand, dim=-1).values
         z = torch.sqrt(2 * (numerator_integrand - epsilon.unsqueeze(-1)))
-        ensemble_prediction = ((epsilon +
-                               0.5 * torch.einsum('...i, ij, ...j -> ...', z, torch.tensor(self.quad_weights), z))
-                               / self.evidence)
-
+        ensemble_prediction = rebalance_probabilities((epsilon +
+            0.5 * torch.einsum('...i, ij, ...j -> ...', z, torch.tensor(self.quad_weights), z)) / self.evidence)
         return ensemble_prediction
 
     def forward_from_predictions(self, predictions_df: pd.DataFrame) -> torch.Tensor:
@@ -110,9 +109,8 @@ class SqEnsemble(Ensemble):
         numerator_integrand = member_predictions * self.likelihoods
         epsilon = 0.8 * torch.min(numerator_integrand, dim=-1).values
         z = torch.sqrt(2 * (numerator_integrand - epsilon.unsqueeze(-1)))
-        ensemble_prediction = ((epsilon +
-                                0.5 * torch.einsum('...i, ij, ...j -> ...', z, torch.tensor(self.quad_weights), z))
-                               / self.evidence)
+        ensemble_prediction = rebalance_probabilities((epsilon +
+             0.5 * torch.einsum('...i, ij, ...j -> ...', z, torch.tensor(self.quad_weights), z)) / self.evidence)
         return ensemble_prediction
 
 
@@ -152,7 +150,7 @@ class LinSqEnsemble(Ensemble):
         member_predictions = torch.stack([model(x) for model in self.models], -1)
         numerator_integrand = member_predictions * self.likelihoods
         epsilon = 0.8 * torch.min(numerator_integrand, dim=-1).values
-        ensemble_prediction = epsilon * self.offset + member_predictions @ self.weights
+        ensemble_prediction = rebalance_probabilities(epsilon * self.offset + member_predictions @ self.weights)
         return ensemble_prediction
 
     def forward_from_predictions(self, predictions_df: pd.DataFrame) -> torch.Tensor:
@@ -165,7 +163,7 @@ class LinSqEnsemble(Ensemble):
                                           for model in self.models], -1)
         numerator_integrand = member_predictions * self.likelihoods
         epsilon = 0.8 * torch.min(numerator_integrand, dim=-1).values
-        ensemble_prediction = epsilon * self.offset + member_predictions @ self.weights
+        ensemble_prediction = rebalance_probabilities(epsilon * self.offset + member_predictions @ self.weights)
         return ensemble_prediction
 
 

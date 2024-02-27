@@ -52,7 +52,7 @@ config = {"candidate_directory": "mnist_basic",     # Name of directory inside e
           "theta_anisotropic": True,                # Whether to use an anisotropic length scale for theta
           "optimize_init": False,                   # Whether to optimise model hyperparameters upon initialisation
           "n_acquire": 5,                           # Number of models to acquire for the ensemble (not including init model)
-          "min_det": [0, 0.001],                    # Minimum correlation matrix determinant to allow during quadrature
+          "min_det": 0.001,                         # Minimum correlation matrix determinant to allow during quadrature
           "test_uniform": True,                     # Whether to also test ensemble with uniform weights and same models
           "nbins": 10                               # Number of bins to use when computing expected calibration error
           }

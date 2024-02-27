@@ -6,8 +6,7 @@ Shallow CNN
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from mnistEnsembleExample.torchTrain import torchTrain
-import os
+from sandbox.mnistEnsembleExample.torchTrain import torchTrain
 
 
 class CNN1(nn.Module):

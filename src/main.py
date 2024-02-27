@@ -23,67 +23,6 @@ import pandas as pd
 
 warnings.filterwarnings("ignore", category=UserWarning)
 logging.basicConfig(level=20)
-
-"""
-train_dataset = torchvision.datasets.MNIST('/files/', train=True, download=True,
-                                           transform=torchvision.transforms.Compose([
-                                           torchvision.transforms.ToTensor(),
-                                           torchvision.transforms.Normalize((0.1307,), (0.3081,))
-                                           ]))
-
-test_dataset = torchvision.datasets.MNIST('/files/', train=False, download=True,
-                                          transform=torchvision.transforms.Compose([
-                                          torchvision.transforms.ToTensor(),
-                                          torchvision.transforms.Normalize((0.1307,), (0.3081,))
-                                          ]))
-
-models = load_models("experiments\\mnist_basic")
-
-search_space_constructor = searchSpaceConstructor.AnthropicSearchSpaceConstructor()
-
-search_space = search_space_constructor.construct_search_space(models, "Image classification", train_dataset, 1000)
-
-init_index = np.random.randint(0, len(search_space.log_likelihoods))
-search_space.query_log_likelihood(init_index)
-
-integrand = quadrature.IntegrandModel(search_space.coordinates[init_index].reshape(1, -1),
-                                      np.exp(search_space.log_likelihoods[init_index]),
-                                      kernel=ExpSquared)
-acquisition = acquisitions.DiscreteUncertaintySampling(integrand.surrogate, search_space)
-acquisition.acquire(5)
-evidence, variance = integrand.quad(min_det=0)
-models_used = get_models(integrand, search_space)
-print(f"Standard GP Model evidence: {evidence} \u00B1 {2 * np.sqrt(variance)}")
-
-sq_integrand = quadrature.SqIntegrandModel(search_space.coordinates, np.exp(search_space.log_likelihoods), kernel=Matern52)
-sq_evidence, sq_variance = sq_integrand.quad(min_det=0)
-
-print(f"WSABI Model evidence: {sq_evidence} \u00B1 {2 * np.sqrt(sq_variance)}")
-
-uniform_ensemble = UniformEnsemble(models_used)
-ensemble = Ensemble(models_used, integrand)
-sq_ensemble = SqEnsemble(search_space.models, sq_integrand)
-diag_sq_ensemble = DiagSqEnsemble(search_space.models, sq_integrand)
-
-n = len(test_dataset)
-
-print("Test set mean log likelihoods:")
-for i, model in enumerate(search_space.models):
-    print(f"Model {i+1}: {log_likelihood(model, test_dataset) / n:.4f}")
-print(f"Uniform weighted ensemble: {log_likelihood(uniform_ensemble, test_dataset) / n:.4f}")
-print(f"Bayesian quadrature ensemble: {log_likelihood(ensemble, test_dataset) / n:.4f}")
-print(f"Warped Bayesian quadrature ensemble: {log_likelihood(sq_ensemble, test_dataset) / n:.4f}")
-print(f"Diagonal Warped Bayesian quadrature ensemble: {log_likelihood(diag_sq_ensemble, test_dataset) / n:.4f}")
-
-print("Test set accuracies:")
-for i, model in enumerate(search_space.models):
-    print(f"Model {i+1}: {accuracy(model, test_dataset):.4f}")
-print(f"Uniform weighted ensemble: {accuracy(uniform_ensemble, test_dataset):.4f}")
-print(f"Bayesian quadrature ensemble: {accuracy(ensemble, test_dataset):.4f}")
-print(f"Warped Bayesian quadrature ensemble: {accuracy(sq_ensemble, test_dataset):.4f}")
-print(f"Diagonal Warped Bayesian quadrature ensemble: {accuracy(diag_sq_ensemble, test_dataset):.4f}")
-"""
-
 logger = logging.getLogger("main")
 
 # Create sacred experiment and set up observers and config
@@ -189,7 +128,10 @@ def run_experiment(_config=None, _run=None):
                          "LinSqIntegrandModel": LinSqEnsemble}
 
         ensemble = ensemble_dict[name[0]](models_used, integrand)
-        data_dict["ensemble_weights"] = ensemble.weights.tolist()
+        if name[0] != "SqIntegrandModel":
+            data_dict["ensemble_weights"] = ensemble.weights.tolist()
+        else:
+            data_dict["ensemble_weights"] = None
         if name[0] == "LinIntegrandModel":
             data_dict["ensemble_offset"] = ensemble.offset.tolist()
 
@@ -201,7 +143,7 @@ def run_experiment(_config=None, _run=None):
             logger.info(f"Ensemble log likelihood: {ensemble_log_likelihood}")
             ensemble_accuracy = accuracy_from_predictions(predictions, test_predictions["Target"])
             data_dict["ensemble_accuracy"] = ensemble_accuracy
-            logger.info(f"Ensemble accuracy: {ensemble_accuracy} \n")
+            logger.info(f"Ensemble accuracy: {ensemble_accuracy}")
             ensemble_ece = expected_calibration_error_from_predictions(predictions, test_predictions["Target"],
                                                                        _config["nbins"])
             data_dict["ensemble_expected_calibration_error"] = ensemble_ece
@@ -212,7 +154,7 @@ def run_experiment(_config=None, _run=None):
             logger.info(f"Ensemble log likelihood: {ensemble_log_likelihood}")
             ensemble_accuracy = accuracy(ensemble, test_dataset, _config["test_batch_size"])
             data_dict["ensemble_accuracy"] = ensemble_accuracy
-            logger.info(f"Ensemble accuracy: {ensemble_accuracy} \n")
+            logger.info(f"Ensemble accuracy: {ensemble_accuracy}")
             ensemble_ece = expected_calibration_error(ensemble, test_dataset, _config["nbins"],
                                                       _config["test_batch_size"])
             data_dict["ensemble_expected_calibration_error"] = ensemble_ece
@@ -229,7 +171,7 @@ def run_experiment(_config=None, _run=None):
                 logger.info(f"Uniform ensemble log likelihood: {uniform_ensemble_log_likelihood}")
                 uniform_ensemble_accuracy = accuracy_from_predictions(uniform_predictions, test_predictions["Target"])
                 data_dict["uniform_ensemble_accuracy"] = uniform_ensemble_accuracy
-                logger.info(f"Uniform ensemble accuracy: {uniform_ensemble_accuracy} \n")
+                logger.info(f"Uniform ensemble accuracy: {uniform_ensemble_accuracy}")
                 uniform_ensemble_ece = expected_calibration_error_from_predictions(uniform_predictions,
                                                                                    test_predictions["Target"],
                                                                                    _config["nbins"])
@@ -243,7 +185,7 @@ def run_experiment(_config=None, _run=None):
                 uniform_ensemble_accuracy = accuracy(uniform_ensemble, test_dataset,
                                                      _config["test_batch_size"])
                 data_dict["uniform_ensemble_accuracy"] = uniform_ensemble_accuracy
-                logger.info(f"Uniform ensemble accuracy: {uniform_ensemble_accuracy} \n")
+                logger.info(f"Uniform ensemble accuracy: {uniform_ensemble_accuracy}")
                 uniform_ensemble_ece = expected_calibration_error(uniform_ensemble, test_dataset, _config["nbins"],
                                                           _config["test_batch_size"])
                 data_dict["uniform_ensemble_expected_calibration_error"] = uniform_ensemble_ece

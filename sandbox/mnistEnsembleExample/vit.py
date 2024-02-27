@@ -7,7 +7,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from einops.layers.torch import Rearrange
 from einops import repeat
-from mnistEnsembleExample.torchTrain import torchTrain
+from sandbox.mnistEnsembleExample.torchTrain import torchTrain
 
 
 class VIT(nn.Module):
@@ -43,7 +43,7 @@ class VIT(nn.Module):
             nn.GELU(),
             nn.Linear(mlp_dim, num_classes))
         if trained:
-            self.load_state_dict(torch.load('C:/Users/gwhit/PycharmProjects/4YP/mnistEnsembleExample/states/vit.pth'))
+            self.load_state_dict(torch.load('/sandbox/mnistEnsembleExample/states/vit.pth'))
         self.eval()
 
     def forward(self, img):

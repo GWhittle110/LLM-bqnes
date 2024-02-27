@@ -13,7 +13,7 @@ import tinygp
 import os
 import re
 import matplotlib.pyplot as plt
-from quadrature.tinyQuadGP import QuadGP
+from sandbox.quadrature.tinyQuadGP import QuadGP
 
 
 class AnthropicSearchSpace(Anthropic):

@@ -7,7 +7,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import einops.layers.torch
 from einops import repeat
-from mnistEnsembleExample.torchTrain import torchTrain
+from sandbox.mnistEnsembleExample.torchTrain import torchTrain
 
 
 class VIT(nn.Module):

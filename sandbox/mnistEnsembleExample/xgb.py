@@ -5,7 +5,7 @@ XGBoost
 
 import torch
 import xgboost as xgb
-from mnistEnsembleExample.xgbTrain import xgbTrain
+from sandbox.mnistEnsembleExample.xgbTrain import xgbTrain
 
 
 class XGB:

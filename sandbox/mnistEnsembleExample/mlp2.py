@@ -6,7 +6,7 @@ Deeper MLP with gelu activation functions instead of relu and slight dropout
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from mnistEnsembleExample.torchTrain import torchTrain
+from sandbox.mnistEnsembleExample.torchTrain import torchTrain
 
 
 class MLP2(nn.Module):
@@ -24,7 +24,7 @@ class MLP2(nn.Module):
 
 
         if trained:
-            self.load_state_dict(torch.load('C:/Users/gwhit/PycharmProjects/4YP/mnistEnsembleExample/states/mlp2.pth'))
+            self.load_state_dict(torch.load('/sandbox/mnistEnsembleExample/states/mlp2.pth'))
         self.eval()
 
     def forward(self, x):

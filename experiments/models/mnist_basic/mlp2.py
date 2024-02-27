@@ -6,7 +6,7 @@ Deeper MLP with gelu activation functions instead of relu and slight dropout
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from mnistEnsembleExample.torchTrain import torchTrain
+from sandbox.mnistEnsembleExample.torchTrain import torchTrain
 
 
 class MLP2(nn.Module):
