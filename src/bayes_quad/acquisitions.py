@@ -14,7 +14,7 @@ class Acquisition(ABC):
     """
     Abstract Base class of acquisition functions
     """
-    def __init__(self, gp: GP, search_space: SearchSpace):
+    def __init__(self, gp: GP, search_space: SearchSpace, *args, **kwargs):
         """
         :param gp: Underlying GP model
         :param search_space: Search space from which to acquire
