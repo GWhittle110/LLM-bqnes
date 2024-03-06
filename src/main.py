@@ -20,6 +20,7 @@ from importlib import __import__
 import os
 import git
 import pandas as pd
+import yaml
 
 warnings.filterwarnings("ignore", category=UserWarning)
 logging.basicConfig(level=20)
@@ -27,9 +28,10 @@ logger = logging.getLogger("main")
 
 # Create sacred experiment and set up observers and config
 ex = Experiment()
-ex.observers.append(FileStorageObserver('../logs'))
 ex.add_config("..\\experiments\\configs\\mnistBasicConfig.yaml")
-
+with open("..\\experiments\\configs\\mnistBasicConfig.yaml", 'r') as file:
+    config = yaml.safe_load(file)
+ex.observers.append(FileStorageObserver('..\\experiments\\logs\\' + config["candidate_directory"]))
 
 @ex.automain
 def run_experiment(_config=None, _run=None):
@@ -86,6 +88,11 @@ def run_experiment(_config=None, _run=None):
                     "Matern32": Matern32,
                     "Matern52": Matern52}
 
+    acquisitions_dict = {"IntegrandModel": acquisitions.DiscreteWarpedUncertaintySampling,
+                         "SqIntegrandModel": acquisitions.DiscreteUncertaintySampling,
+                         "DiagSqIntegrandModel": acquisitions.DiscreteUncertaintySampling,
+                         "LinSqIntegrandModel": acquisitions.DiscreteUncertaintySampling}
+
     theta_inits = [{"log_scale": np.float64(log_scale),
                     "log_amp": np.float64(log_amp),
                     "log_jitter": np.float64(log_jitter)}
@@ -108,13 +115,13 @@ def run_experiment(_config=None, _run=None):
         logger.info(f"Evaluating {name[0]} using {name[1]} kernel \n")
 
         # Acquire models coordinates
-        acquisition = acquisitions.DiscreteUncertaintySampling(integrand.surrogate, search_space)
+        acquisition = acquisitions_dict[name[0]](integrand.surrogate, search_space, epsilon=0.1)
         acquisition.acquire(n_acquire, _config["train_batch_size"])
         models_used = get_models(integrand, search_space)
-        data_dict["models"] = [type(model).__name__ for model in models_used]
+        data_dict["models"] = {type(model).__name__: i for i, model in enumerate(models_used)}
 
         # Run quadrature routine
-        evidence, variance = integrand.quad(min_det=0)
+        evidence, variance = integrand.quad(min_det=min_det)
         data_dict["evidence"] = float(evidence)
         data_dict["variance"] = float(variance)
         data_dict["quad_weights"] = integrand.quad_weights.tolist()

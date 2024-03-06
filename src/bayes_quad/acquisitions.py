@@ -54,6 +54,9 @@ class Acquisition(ABC):
 
 
 class DiscreteUncertaintySampling(Acquisition):
+    """
+    Acquire point with maximum uncertainty
+    """
 
     def eval(self, x):
         """
@@ -102,3 +105,27 @@ class DiscreteUncertaintySampling(Acquisition):
         self.logger.info(f"Acquired coordinate: {candidates[np.argmax(evaluations)]}")
         return candidates[np.argmax(evaluations)]
 
+
+class DiscreteWarpedUncertaintySampling(DiscreteUncertaintySampling):
+    """
+    Acquire point with maximum uncertainty in equivalent square root warped ensemble
+    """
+
+    def __init__(self,  gp: GP, search_space: SearchSpace, epsilon: float = 0.0):
+        """
+        :param gp: Underlying GP model
+        :param search_space: Search space from which to acquire
+                :param epsilon: Constant to add to mean to prevent 0 uncertainty at regions with predicted 0 mean
+
+        """
+        super().__init__(gp, search_space)
+        self.epsilon = epsilon
+
+    def eval(self, x):
+        """
+        Evaluate acquisition metric (equivalent warped GP uncertainty) at given query point
+        :param x: Query point
+        :return: Warped GP uncertainty at query point
+        """
+        mean, variance = self.gp.predict(x)
+        return (mean + self.epsilon) * variance * (mean * self.epsilon)

@@ -2,15 +2,13 @@
 Interface with LLM for construction of search space
 """
 
-from anthropic import Anthropic, HUMAN_PROMPT, AI_PROMPT
+from anthropic import Anthropic
 from dotenv import dotenv_values
-from typing import Iterable, Union
 import numpy as np
 import re
 from src.LLMSearchSpace.searchSpace import SearchSpace
 import inspect
 from torch.utils.data import Dataset
-import logging
 from pandas import DataFrame
 
 
@@ -22,9 +20,9 @@ class AnthropicSearchSpaceConstructor(Anthropic):
     """
 
     def __init__(self, api_key: str = dotenv_values()['ANTHROPIC_API_KEY'],
-                 max_tokens: int = 10000,
-                 model: str = "claude-2.1",
-                 examples: Union[Iterable[str], str] = None,
+                 max_tokens: int = 4096,
+                 model: str = "claude-3-opus-20240229",
+                 examples: list[dict[str, str]] = None,
                  *args, **kwargs):
 
         f"""
@@ -33,14 +31,16 @@ class AnthropicSearchSpaceConstructor(Anthropic):
          .env file in the active project.
         :param max_tokens: int, maximum number of tokens to sample
         :param model: str, Anthropic LLM model used
-        :param examples: Iterable[str], iterable of additional chain of thought prompts the user wishes to use to 
-        initialise the search space. Must be in form f"{HUMAN_PROMPT} ... {AI_PROMPT} ..."
+        :param examples: List of examples to inform the LLM. Uses Anthropic Message API format, so must be in form
+        [dict("role": "user", "content": "example prompt 1"), dict("role": "assistant"), "content": 
+        "example response 1"), ... ]
         """
 
         super().__init__(api_key=api_key, *args, **kwargs)
 
         self.max_tokens = max_tokens
         self.model = model
+        self.examples = [] if examples is None else examples
 
         self.system_prompt = f"You are a sophisticated, highly intelligent AI whose sole purpose is to be part of a \
                                Neural ensemble search algorithm. This algorithm is using a Gaussian process to \
@@ -99,21 +99,6 @@ class AnthropicSearchSpaceConstructor(Anthropic):
                                case restart from task 2. Task 6: Check the produced coordinates are uncorrelated, and \
                                if they are restart from task 2 with different features. "
 
-        if isinstance(examples, str):
-            self.user_examples = examples
-        elif examples is not None:
-            self.user_examples = "".join(examples)
-        else:
-            self.user_examples = ""
-
-        init_prompt = "".join((self.system_prompt, self.user_examples))
-
-        if examples is not None:
-            setup = self.completions.create(model=self.model, max_tokens_to_sample=self.max_tokens, prompt=init_prompt)
-            self.starter_prompt = init_prompt + setup.completion
-        else:
-            self.starter_prompt = init_prompt
-
     def construct_search_space(self, models: list[callable], task: str, dataset: Dataset,
                                predictions: DataFrame = None, reduction_factor: float = 1, _run=None) -> SearchSpace:
         """
@@ -136,19 +121,18 @@ class AnthropicSearchSpaceConstructor(Anthropic):
         source_code_prompt = "".join(
             [f"<source index={i}> {source} </source>" for i, source in enumerate(source_code)])
 
-        prompt = f"{HUMAN_PROMPT} Please analyse the following source code: <models> {source_code_prompt} </models>\
+        message = {"role": "user", "content": f"Please analyse the following source code: <models> {source_code_prompt} </models>\
                    These models will be used for {task}. The dataset information is: {dataset_info}. Then carry out \
-                   your tasks detailed above. {AI_PROMPT}"
-
-        complete_prompt = "".join((self.starter_prompt, prompt))
-        completion = self.completions.create(model=self.model, max_tokens_to_sample=self.max_tokens,
-                                             prompt=complete_prompt)
-        response = completion.completion
+                   your tasks detailed above."}
+        response_message = self.messages.create(max_tokens=self.max_tokens, model=self.model, system=self.system_prompt,
+                                                messages=self.examples+[message])
+        response = response_message.content[0].dict()["text"]
         print(response)
         coord_strings = re.findall('<coordinate index=[0-9]+>(.+?)</coordinate>', response, flags=re.DOTALL)
         coords = np.array([[float(x) for x in re.findall('[0-9|.]+', coord)] for coord in coord_strings])
         if _run is not None:
-            _run.info["claude_response"] = response
+            _run.info["claude_query"] = message
+            _run.info["claude_response"] = response_message
             _run.info["coordinates"] = coords.tolist()
         search_space = SearchSpace(models, coords, dataset, predictions=predictions, reduction_factor=reduction_factor)
         return search_space
