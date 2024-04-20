@@ -30,10 +30,18 @@ def predictions(directory: str, dataset: str, save: bool = True, batch_size: int
     train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False)
     test_dataloader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
+    def safe_run(model, inputs, device):
+        try:
+            return model.to(device)(inputs.to(device))
+        except AttributeError:
+            return model(inputs).to(device)
+
+    print(models)
+
     with torch.no_grad():
-        train_predictions = [torch.cat([model.to(device)(inputs.to(device))
+        train_predictions = [torch.cat([safe_run(model, inputs, device)
                                         for inputs, targets in train_dataloader]).cpu().numpy() for model in models]
-        test_predictions = [torch.cat([model.to(device)(inputs.to(device))
+        test_predictions = [torch.cat([safe_run(model, inputs, device)
                                        for inputs, targets in test_dataloader]).cpu().numpy() for model in models]
 
     train_df = pd.DataFrame(np.array(train_predictions).transpose((1, 0, 2)).tolist(),

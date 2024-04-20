@@ -8,6 +8,7 @@ from src.bayes_quad import *
 from src.utils.logLikelihood import log_likelihood, log_likelihood_from_predictions
 from src.ensemble import *
 from src.utils.loadModels import load_models
+from src.utils.loadNatsModels import load_nats_models
 from src.utils.expectedCalibrationError import expected_calibration_error, expected_calibration_error_from_predictions
 from src.utils.accuracy import accuracy, accuracy_from_predictions
 from tinygp.kernels.stationary import Exp, ExpSquared, Matern32, Matern52
@@ -21,15 +22,17 @@ import os
 import git
 import pandas as pd
 import yaml
+from nats_bench import create
 
 warnings.filterwarnings("ignore", category=UserWarning)
 logging.basicConfig(level=20)
 logger = logging.getLogger("main")
 
 # Create sacred experiment and set up observers and config
+config_name = "mnistBasicConfig"
 ex = Experiment()
-ex.add_config("..\\experiments\\configs\\mnistBasicConfig.yaml")
-with open("..\\experiments\\configs\\mnistBasicConfig.yaml", 'r') as file:
+ex.add_config(f"..\\experiments\\configs\\{config_name}.yaml")
+with open(f"..\\experiments\\configs\\{config_name}.yaml", 'r') as file:
     config = yaml.safe_load(file)
 ex.observers.append(FileStorageObserver('..\\experiments\\logs\\' + config["candidate_directory"]))
 
@@ -41,8 +44,14 @@ def run_experiment(_config=None, _run=None):
     :param _run: Sacred run object
     """
 
-    # Get the candidate models from the experiment model directory
-    candidate_models = load_models("experiments\\models\\"+_config["candidate_directory"])
+    nats = "nats_indexes" in _config
+    if nats:
+        # Initialise nats models
+        api = create(None, _config["nats_ss"], fast_mode=True, verbose=True)
+        candidate_models = load_nats_models(api, _config["nats_indexes"], _config["dataset"])
+    else:
+        # Get the candidate models from the experiment model directory
+        candidate_models = load_models("experiments\\models\\"+_config["candidate_directory"])
 
     # Load dataset
     dataset_module = __import__("experiments.datasets."+_config["dataset"], fromlist=["train_dataset", "test_dataset"])
@@ -67,6 +76,7 @@ def run_experiment(_config=None, _run=None):
                                                                    dataset=train_dataset,
                                                                    predictions=train_predictions,
                                                                    reduction_factor=_config["ll_reduction"],
+                                                                   nats=nats,
                                                                    _run=_run)
 
     # Early stop if specified
@@ -109,7 +119,7 @@ def run_experiment(_config=None, _run=None):
                   in zipper(_config["integrand_models"], _config["kernels"], theta_inits, _config["optimize_init"])}
 
     # Henceforth repeat experiment for all integrands
-    for (name, integrand), n_acquire, min_det, test_uniform in zipper(integrands.items(), _config["n_acquire"], _config["min_det"], _config["test_uniform"]):
+    for (name, integrand), n_acquire, min_det, test_uniform, test_bayes in zipper(integrands.items(), _config["n_acquire"], _config["min_det"], _config["test_uniform"], _config["test_bayes"]):
         data_dict = dict()
 
         logger.info(f"Evaluating {name[0]} using {name[1]} kernel \n")
@@ -124,7 +134,6 @@ def run_experiment(_config=None, _run=None):
         evidence, variance = integrand.quad(min_det=min_det)
         data_dict["evidence"] = float(evidence)
         data_dict["variance"] = float(variance)
-        data_dict["quad_weights"] = integrand.quad_weights.tolist()
 
         logger.info(f"Model evidence: {evidence} \u00B1 {2 * np.sqrt(variance)} \n")
 
@@ -135,12 +144,6 @@ def run_experiment(_config=None, _run=None):
                          "LinSqIntegrandModel": LinSqEnsemble}
 
         ensemble = ensemble_dict[name[0]](models_used, integrand)
-        if name[0] != "SqIntegrandModel":
-            data_dict["ensemble_weights"] = ensemble.weights.tolist()
-        else:
-            data_dict["ensemble_weights"] = None
-        if name[0] == "LinIntegrandModel":
-            data_dict["ensemble_offset"] = ensemble.offset.tolist()
 
         # Evaluate ensemble log likelihood, accuracy and expected calibration error
         if test_predictions is not None:
@@ -153,7 +156,7 @@ def run_experiment(_config=None, _run=None):
             logger.info(f"Ensemble accuracy: {ensemble_accuracy}")
             ensemble_ece = expected_calibration_error_from_predictions(predictions, test_predictions["Target"],
                                                                        _config["nbins"])
-            data_dict["ensemble_expected_calibration_error"] = ensemble_ece
+            data_dict["ensemble_expected_calibration_error"] = float(ensemble_ece)
             logger.info(f"Ensemble expected calibration error: {ensemble_ece} \n")
         else:
             ensemble_log_likelihood = log_likelihood(ensemble, test_dataset, _config["test_batch_size"])
@@ -164,7 +167,7 @@ def run_experiment(_config=None, _run=None):
             logger.info(f"Ensemble accuracy: {ensemble_accuracy}")
             ensemble_ece = expected_calibration_error(ensemble, test_dataset, _config["nbins"],
                                                       _config["test_batch_size"])
-            data_dict["ensemble_expected_calibration_error"] = ensemble_ece
+            data_dict["ensemble_expected_calibration_error"] = float(ensemble_ece)
             logger.info(f"Ensemble expected calibration error: {ensemble_ece} \n")
 
         # If required, also evaluate ensemble with uniform weights
@@ -182,7 +185,7 @@ def run_experiment(_config=None, _run=None):
                 uniform_ensemble_ece = expected_calibration_error_from_predictions(uniform_predictions,
                                                                                    test_predictions["Target"],
                                                                                    _config["nbins"])
-                data_dict["ensemble_expected_calibration_error"] = uniform_ensemble_ece
+                data_dict["uniform_ensemble_expected_calibration_error"] = uniform_ensemble_ece
                 logger.info(f"Uniform ensemble expected calibration error: {uniform_ensemble_ece} \n")
             else:
                 uniform_ensemble_log_likelihood = log_likelihood(uniform_ensemble, test_dataset,
@@ -196,10 +199,46 @@ def run_experiment(_config=None, _run=None):
                 uniform_ensemble_ece = expected_calibration_error(uniform_ensemble, test_dataset, _config["nbins"],
                                                           _config["test_batch_size"])
                 data_dict["uniform_ensemble_expected_calibration_error"] = uniform_ensemble_ece
-                logger.info(f"Ensemble expected calibration error: {uniform_ensemble_ece} \n")
+                logger.info(f"Uniform ensemble expected calibration error: {uniform_ensemble_ece} \n")
         else:
             data_dict["uniform_ensemble_loss"] = None
             data_dict["uniform_ensemble_accuracy"] = None
             data_dict["uniform_ensemble_expected_calibration_error"] = None
+
+        # If required, also evaluate ensemble with likelihood weights
+        if test_bayes:
+            bayes_ensemble = BayesEnsemble(models_used, integrand)
+            if test_predictions is not None:
+                bayes_predictions = bayes_ensemble.forward_from_predictions(test_predictions).numpy()
+                bayes_ensemble_log_likelihood = log_likelihood_from_predictions(bayes_predictions,
+                                                                                  test_predictions["Target"])
+                data_dict["bayes_ensemble_log_likelihood"] = bayes_ensemble_log_likelihood
+                logger.info(f"Bayes ensemble log likelihood: {bayes_ensemble_log_likelihood}")
+                bayes_ensemble_accuracy = accuracy_from_predictions(bayes_predictions,
+                                                                      test_predictions["Target"])
+                data_dict["bayes_ensemble_accuracy"] = bayes_ensemble_accuracy
+                logger.info(f"Bayes ensemble accuracy: {bayes_ensemble_accuracy}")
+                bayes_ensemble_ece = expected_calibration_error_from_predictions(bayes_predictions,
+                                                                                   test_predictions["Target"],
+                                                                                   _config["nbins"])
+                data_dict["bayes_ensemble_expected_calibration_error"] = bayes_ensemble_ece
+                logger.info(f"Bayes ensemble expected calibration error: {bayes_ensemble_ece} \n")
+            else:
+                bayes_ensemble_log_likelihood = log_likelihood(bayes_ensemble, test_dataset,
+                                                                 _config["test_batch_size"])
+                data_dict["bayes_ensemble_log_likelihood"] = bayes_ensemble_log_likelihood
+                logger.info(f"Bayes ensemble log likelihood: {bayes_ensemble_log_likelihood}")
+                bayes_ensemble_accuracy = accuracy(bayes_ensemble, test_dataset,
+                                                     _config["test_batch_size"])
+                data_dict["bayes_ensemble_accuracy"] = bayes_ensemble_accuracy
+                logger.info(f"Bayes ensemble accuracy: {bayes_ensemble_accuracy}")
+                bayes_ensemble_ece = expected_calibration_error(bayes_ensemble, test_dataset, _config["nbins"],
+                                                                  _config["test_batch_size"])
+                data_dict["bayes_ensemble_expected_calibration_error"] = bayes_ensemble_ece
+                logger.info(f"Bayes ensemble expected calibration error: {bayes_ensemble_ece} \n")
+        else:
+            data_dict["bayes_ensemble_loss"] = None
+            data_dict["bayes_ensemble_accuracy"] = None
+            data_dict["bayes_ensemble_expected_calibration_error"] = None
 
         _run.info[name] = data_dict

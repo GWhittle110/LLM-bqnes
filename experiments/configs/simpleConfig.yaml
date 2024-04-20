@@ -1,0 +1,25 @@
+candidate_directory: simple
+dataset: logistic
+examples: null
+from_predictions: true
+integrand_models:
+- IntegrandModel
+kernels:
+- ExpSquared
+ll_reduction: 2000
+log_amps: 0.0
+log_jitters: 0.0
+log_scales: -1.0
+max_tokens: 4096
+min_det:
+- 1.0e-05
+n_acquire: 7
+nbins: 10
+optimize_init: false
+search_space_only: true
+task: Classification
+test_batch_size: 1000
+test_uniform: true
+test_bayes: true
+theta_anisotropic: true
+train_batch_size: 1000

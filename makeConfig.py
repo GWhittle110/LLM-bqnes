@@ -11,7 +11,7 @@ config = {"candidate_directory": "mnist_basic",     # Name of directory inside e
           "from_predictions": True,                 # Whether to use pre-calculated predictions
           "train_batch_size": 100,                  # Training batch size
           "test_batch_size": 100,                   # Testing batch size
-          "ll_reduction": 1000,                     # Factor to divide log likelihoods by
+          "ll_reduction": 2000,                     # Factor to divide log likelihoods by
           "search_space_only": False,               # Whether to proceed once the search space is defined
           "integrand_models": ["IntegrandModel",
                                "IntegrandModel",
@@ -51,10 +51,10 @@ config = {"candidate_directory": "mnist_basic",     # Name of directory inside e
           "theta_anisotropic": True,                # Whether to use an anisotropic length scale for theta
           "optimize_init": False,                   # Whether to optimise model hyperparameters upon initialisation
           "n_acquire": 5,                           # Number of models to acquire for the ensemble (not including init model)
-          "min_det": [0.,
-                      0.,
-                      0.,
-                      0.,
+          "min_det": [0.00001,
+                      0.00001,
+                      0.00001,
+                      0.00001,
                       0.001,
                       0.001,
                       0.001,

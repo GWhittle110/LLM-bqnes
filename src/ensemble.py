@@ -199,3 +199,14 @@ class UniformEnsemble(Ensemble):
         torch.nn.Module.__init__(self)
         self.models = models
         self.weights = np.ones(len(models)) / len(models)
+
+
+class BayesEnsemble(Ensemble):
+    """
+    Ensemble using likelihoods as weights
+    """
+
+    def __init__(self, models, integrand):
+        super().__init__(models, integrand)
+        self.evidence = np.sum(self.likelihoods)
+        self.weights = self.likelihoods / self.evidence

@@ -48,6 +48,8 @@ class Acquisition(ABC):
         """
         for i in range(n):
             next_x = self.next()
+            if next_x is None:
+                break
             next_y = np.exp(self.search_space.query_log_likelihood(coordinate=next_x,
                                                                    batch_size=batch_size))
             self.gp.add_data(next_x, next_y)
@@ -73,7 +75,7 @@ class DiscreteUncertaintySampling(Acquisition):
         :return: Candidate point corresponding to maximum GP uncertainty
         Example, standard GP:
         >>> logging.basicConfig(level=20)
-        >>> x = np.random.rand(2).reshape(-1,1)
+        >>> x = np.random.rand(3).reshape(-1,1)
         >>> y = np.sin(np.pi*x).reshape(-1)
         >>> surrogate = GP(x, y)
         >>> surrogate.plot()
@@ -101,6 +103,9 @@ class DiscreteUncertaintySampling(Acquisition):
                 surrogate.plot()
         """
         candidates = np.array(list(set(map(tuple, self.search_space.coordinates)) - set(map(tuple, self.gp.x))))
+        if len(candidates) == 0:
+            self.logger.info("No coordinates left to acquire")
+            return None
         evaluations = self.eval(candidates)
         self.logger.info(f"Acquired coordinate: {candidates[np.argmax(evaluations)]}")
         return candidates[np.argmax(evaluations)]

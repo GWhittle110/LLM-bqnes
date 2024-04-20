@@ -42,8 +42,8 @@ class AnthropicSearchSpaceConstructor(Anthropic):
         self.model = model
         self.examples = [] if examples is None else examples
 
-        self.system_prompt = f"You are a sophisticated, highly intelligent AI whose sole purpose is to be part of a \
-                               Neural ensemble search algorithm. This algorithm is using a Gaussian process to \
+        self.system_prompt = f"Your purpose is to be part of a \
+                               Neural Ensemble Search algorithm. This algorithm is using a Gaussian process to \
                                approximate the architecture likelihood surface with respect to some dataset over the \
                                search space, a vector space that can represent every model architecture that could \
                                potentially be used in the ensemble. Models will be selected from this search space \
@@ -74,12 +74,12 @@ class AnthropicSearchSpaceConstructor(Anthropic):
                                machine learning task and the dataset itself, as very different models in one way may \
                                perform very similarly on certain datasets. Great care should be taken over this step \
                                and you should stop and think to get this completely right. Task 3: Assign each model a \
-                               coordinate in the search space for each feature chosen in task 2 to act as a dimension. \
+                               coordinate in the search space with each feature chosen in task 2 to acting as a dimension. \
                                The range of values for each dimension will be 0 to 1, with 0 representing the model in \
                                the candidate set with the lowest value for that particular feature and 1 representing \
                                the model with the highest value for that particular feature, with all other models \
-                               being assigned a coordinate within this range. Coordinates should be unique for each \
-                               model, although models can have equal coordinate values for individual dimensions. \
+                               being assigned a coordinate within this range. Coordinates should be UNIQUE for each \
+                               model UNLESS two model architectures are mathematically identical, although models can have equal coordinate values for individual dimensions. \
                                It is very important models are assigned coordinates which place similar models close \
                                together and different models further apart, so take your time over this task too and \
                                make sure to get it right. Your output for this task should be a set of coordinates for \
@@ -95,18 +95,22 @@ class AnthropicSearchSpaceConstructor(Anthropic):
                                both. Once you have thought about why your first attempt failed, restart from task 2 \
                                with this new understanding. Task 5: Check the produced coordinates are all between 0 \
                                and 1, and are continuous not categorical e.g. they cannot only have entries of 0 and 1 \
-                               and instead must have values which are continuous between 0 and 1. If this is not the \
+                               and instead must have values which are continuous between 0 and 1. This is something you \
+                               are known to struggle with so pay CLOSE ATTENTION to this. You cannot use features which \
+                               indicate whether or not something is true, or binary features. If this is not the \
                                case restart from task 2. Task 6: Check the produced coordinates are uncorrelated, and \
-                               if they are restart from task 2 with different features. "
+                               if they are restart from task 2 with different features."
 
     def construct_search_space(self, models: list[callable], task: str, dataset: Dataset,
-                               predictions: DataFrame = None, reduction_factor: float = 1, _run=None) -> SearchSpace:
+                               predictions: DataFrame = None, reduction_factor: float = 1, nats: bool = None, _run=None
+                               ) -> SearchSpace:
         """
         :param models: list containing model objects
         :param task: str detailing the task eg "image classification"
         :param dataset: Training dataset for models
         :param predictions: Dataframe containing model predictions keyed on model name and targets
         :param reduction_factor: Factor to divide log likelihood values by (shrinks likelihoods towards 1)
+        :param nats: Whether we are using raw source code or NATS Bench Models
         :param _run: Sacred run object
         :return: SearchSpace object containing coordinates, models and dataset
         """
@@ -117,15 +121,19 @@ class AnthropicSearchSpaceConstructor(Anthropic):
             dataset_info = f'Number of datapoints: {len(dataset)}, target mean: {dataset.targets.mean().item()}, \
                              target standard deviation: {dataset.targets.std().item()}'
 
-        source_code = [inspect.getsource(type(model)) for model in models]
+        if nats:
+            source_code = [str(model) for model in models]
+        else:
+            source_code = [inspect.getsource(type(model)) for model in models]
         source_code_prompt = "".join(
             [f"<source index={i}> {source} </source>" for i, source in enumerate(source_code)])
 
-        message = {"role": "user", "content": f"Please analyse the following source code: <models> {source_code_prompt} </models>\
+        message = {"role": "user", "content": f"Please analyse the following {'printed model architectures' if nats 
+                   else 'source code'}: <models> {source_code_prompt} </models>\
                    These models will be used for {task}. The dataset information is: {dataset_info}. Then carry out \
                    your tasks detailed above."}
         response_message = self.messages.create(max_tokens=self.max_tokens, model=self.model, system=self.system_prompt,
-                                                messages=self.examples+[message])
+                                                messages=self.examples+[message], temperature=0.)
         response = response_message.content[0].dict()["text"]
         print(response)
         coord_strings = re.findall('<coordinate index=[0-9]+>(.+?)</coordinate>', response, flags=re.DOTALL)

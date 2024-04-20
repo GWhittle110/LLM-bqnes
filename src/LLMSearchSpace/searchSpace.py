@@ -45,7 +45,11 @@ class SearchSpace:
             raise ValueError("Must specify exactly one of index and coordinate")
 
         if coordinate is not None:
-            index = np.where((self.coordinates == coordinate).min(axis=1))[0].item()
+            try:
+                index = np.where((self.coordinates == coordinate).min(axis=1))[0].item()
+            except ValueError:
+                # Occurs when non unique coordinate indicating the same model, hence take first one
+                index = np.where((self.coordinates == coordinate).min(axis=1))[0][0].item()
 
         if np.isnan(self.log_likelihoods[index]):
             model = self.models[index]
