@@ -103,7 +103,7 @@ class AnthropicSearchSpaceConstructor(Anthropic):
 
     def construct_search_space(self, models: list[callable], task: str, dataset: Dataset,
                                predictions: DataFrame = None, reduction_factor: float = 1, nats: bool = None, _run=None
-                               ) -> SearchSpace:
+                               ) -> [SearchSpace, np.ndarray]:
         """
         :param models: list containing model objects
         :param task: str detailing the task eg "image classification"
@@ -112,7 +112,7 @@ class AnthropicSearchSpaceConstructor(Anthropic):
         :param reduction_factor: Factor to divide log likelihood values by (shrinks likelihoods towards 1)
         :param nats: Whether we are using raw source code or NATS Bench Models
         :param _run: Sacred run object
-        :return: SearchSpace object containing coordinates, models and dataset
+        :return: SearchSpace object containing coordinates, models and dataset, and array of discrete dimensions
         """
 
         if "classification" in task.lower():
@@ -128,8 +128,8 @@ class AnthropicSearchSpaceConstructor(Anthropic):
         source_code_prompt = "".join(
             [f"<source index={i}> {source} </source>" for i, source in enumerate(source_code)])
 
-        message = {"role": "user", "content": f"Please analyse the following {'printed model architectures' if nats 
-                   else 'source code'}: <models> {source_code_prompt} </models>\
+        message = {"role": "user", "content": f"Please analyse the following \
+        {'printed model architectures' if nats else 'source code'}: <models> {source_code_prompt} </models>\
                    These models will be used for {task}. The dataset information is: {dataset_info}. Then carry out \
                    your tasks detailed above."}
         response_message = self.messages.create(max_tokens=self.max_tokens, model=self.model, system=self.system_prompt,
@@ -138,9 +138,13 @@ class AnthropicSearchSpaceConstructor(Anthropic):
         print(response)
         coord_strings = re.findall('<coordinate index=[0-9]+>(.+?)</coordinate>', response, flags=re.DOTALL)
         coords = np.array([[float(x) for x in re.findall('[0-9|.]+', coord)] for coord in coord_strings])
+        discrete_dims = np.array([i for i in range(coords.shape[1]) if set(coords[:,i]).union({0., 1.}) == {0., 1.}])
+        if len(discrete_dims) == 0:
+            discrete_dims = None
         if _run is not None:
             _run.info["claude_query"] = message
             _run.info["claude_response"] = response_message
             _run.info["coordinates"] = coords.tolist()
+            _run.info["discrete_dims"] = discrete_dims.tolist() if discrete_dims is not None else None
         search_space = SearchSpace(models, coords, dataset, predictions=predictions, reduction_factor=reduction_factor)
-        return search_space
+        return search_space, discrete_dims

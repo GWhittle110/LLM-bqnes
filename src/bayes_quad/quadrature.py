@@ -110,12 +110,14 @@ class IntegrandModel:
 
         return self.evidence, self.variance
 
-    def quad(self, n_samples: int = 100, sampler: callable = None, min_det: float = 0.001):
+    def quad(self, n_samples: int = 100, sampler: callable = None, min_det: float = 0.001,
+             discrete_dims: np.ndarray = None):
         """
         Calculates integral across unit hypercube, quadrature weights and uncertainty using Monte Carlo integration.
         :param n_samples: Number of points to sample. Defaults to 100
         :param sampler: Sampling method. Defaults to latin hypercube
         :param min_det: minimum determinant of quadrature point correlation matrix, to stabilise inversion
+        :param discrete_dims: Indexes of one hot encoded dimensions which should only be summed over
         :return: (Integral, Variance)
         Example, 1d:
         >>> x = np.random.rand(5).reshape(-1,1)
@@ -147,6 +149,9 @@ class IntegrandModel:
             sampler = qmc.LatinHypercube(d=self.surrogate.ndim).random
 
         samples = sampler(n_samples)
+
+        if discrete_dims is not None:
+            samples[:, discrete_dims] = samples[:, discrete_dims].round()
 
         return self.discrete_quad(samples, min_det=min_det)
 

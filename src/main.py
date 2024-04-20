@@ -71,13 +71,13 @@ def run_experiment(_config=None, _run=None):
     # Construct the search space object
     search_space_constructor = searchSpaceConstructor.AnthropicSearchSpaceConstructor(max_tokens=_config["max_tokens"],
                                                                                       examples=_config["examples"])
-    search_space = search_space_constructor.construct_search_space(models=candidate_models,
-                                                                   task=_config["task"],
-                                                                   dataset=train_dataset,
-                                                                   predictions=train_predictions,
-                                                                   reduction_factor=_config["ll_reduction"],
-                                                                   nats=nats,
-                                                                   _run=_run)
+    search_space, discrete_dims = search_space_constructor.construct_search_space(models=candidate_models,
+                                                                                  task=_config["task"],
+                                                                                  dataset=train_dataset,
+                                                                                  predictions=train_predictions,
+                                                                                  reduction_factor=_config["ll_reduction"],
+                                                                                  nats=nats,
+                                                                                  _run=_run)
 
     # Early stop if specified
     if _config["search_space_only"]:
@@ -131,7 +131,7 @@ def run_experiment(_config=None, _run=None):
         data_dict["models"] = {type(model).__name__: i for i, model in enumerate(models_used)}
 
         # Run quadrature routine
-        evidence, variance = integrand.quad(min_det=min_det)
+        evidence, variance = integrand.quad(min_det=min_det, discrete_dims=discrete_dims)
         data_dict["evidence"] = float(evidence)
         data_dict["variance"] = float(variance)
 
