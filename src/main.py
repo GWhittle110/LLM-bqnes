@@ -23,13 +23,14 @@ import git
 import pandas as pd
 import yaml
 from nats_bench import create
+from dotenv import dotenv_values
 
 warnings.filterwarnings("ignore", category=UserWarning)
 logging.basicConfig(level=20)
 logger = logging.getLogger("main")
 
 # Create sacred experiment and set up observers and config
-config_name = "mnistBasicConfig"
+config_name = "natsCIFAR10Config"
 ex = Experiment()
 ex.add_config(f"..\\experiments\\configs\\{config_name}.yaml")
 with open(f"..\\experiments\\configs\\{config_name}.yaml", 'r') as file:
@@ -47,10 +48,17 @@ def run_experiment(_config=None, _run=None):
     nats = "nats_indexes" in _config
     if nats:
         # Initialise nats models
-        api = create(None, _config["nats_ss"], fast_mode=True, verbose=True)
+        api = create(dotenv_values()["HOME"] + "\\.torch\\NATS-tss-v1_0-3ffb9-full", _config["nats_ss"],
+                     fast_mode=True, verbose=True)
+        nats_info = {
+            "api": api,
+            "dataset": _config["dataset"],
+            "nats_indexes": _config["nats_indexes"]
+        }
         candidate_models = load_nats_models(api, _config["nats_indexes"], _config["dataset"])
     else:
         # Get the candidate models from the experiment model directory
+        nats_info = None
         candidate_models = load_models("experiments\\models\\"+_config["candidate_directory"])
 
     # Load dataset
@@ -62,7 +70,10 @@ def run_experiment(_config=None, _run=None):
     if _config["from_predictions"]:
         path = os.path.join(git.Repo('.', search_parent_directories=True).working_tree_dir,
                             "experiments\\models\\" + _config["candidate_directory"] + "\\data\\")
-        train_predictions = pd.read_pickle(os.path.join(path, "train_predictions.pkl"))
+        if not nats:
+            train_predictions = pd.read_pickle(os.path.join(path, "train_predictions.pkl"))
+        else:
+            train_predictions = None
         test_predictions = pd.read_pickle(os.path.join(path, "test_predictions.pkl"))
     else:
         train_predictions = None
@@ -76,7 +87,7 @@ def run_experiment(_config=None, _run=None):
                                                                                   dataset=train_dataset,
                                                                                   predictions=train_predictions,
                                                                                   reduction_factor=_config["ll_reduction"],
-                                                                                  nats=nats,
+                                                                                  nats_info=nats_info,
                                                                                   _run=_run)
 
     # Early stop if specified
@@ -128,10 +139,14 @@ def run_experiment(_config=None, _run=None):
         acquisition = acquisitions_dict[name[0]](integrand.surrogate, search_space, epsilon=0.1)
         acquisition.acquire(n_acquire, _config["train_batch_size"])
         models_used = get_models(integrand, search_space)
-        data_dict["models"] = {type(model).__name__: i for i, model in enumerate(models_used)}
+        if nats:
+            data_dict["models"] = {model[1]: i for i, model in enumerate(models_used)}
+        else:
+            data_dict["models"] = {type(model).__name__: i for i, model in enumerate(models_used)}
 
         # Run quadrature routine
         evidence, variance = integrand.quad(min_det=min_det, discrete_dims=discrete_dims)
+        data_dict["theta"] = integrand.surrogate.theta
         data_dict["evidence"] = float(evidence)
         data_dict["variance"] = float(variance)
 
@@ -143,7 +158,7 @@ def run_experiment(_config=None, _run=None):
                          "DiagSqIntegrandModel": Ensemble,
                          "LinSqIntegrandModel": LinSqEnsemble}
 
-        ensemble = ensemble_dict[name[0]](models_used, integrand)
+        ensemble = ensemble_dict[name[0]](models_used, integrand, nats)
 
         # Evaluate ensemble log likelihood, accuracy and expected calibration error
         if test_predictions is not None:
@@ -172,7 +187,7 @@ def run_experiment(_config=None, _run=None):
 
         # If required, also evaluate ensemble with uniform weights
         if test_uniform:
-            uniform_ensemble = UniformEnsemble(models_used)
+            uniform_ensemble = UniformEnsemble(models_used, nats)
             if test_predictions is not None:
                 uniform_predictions = uniform_ensemble.forward_from_predictions(test_predictions).numpy()
                 uniform_ensemble_log_likelihood = log_likelihood_from_predictions(uniform_predictions,
@@ -207,7 +222,7 @@ def run_experiment(_config=None, _run=None):
 
         # If required, also evaluate ensemble with likelihood weights
         if test_bayes:
-            bayes_ensemble = BayesEnsemble(models_used, integrand)
+            bayes_ensemble = BayesEnsemble(models_used, integrand, nats)
             if test_predictions is not None:
                 bayes_predictions = bayes_ensemble.forward_from_predictions(test_predictions).numpy()
                 bayes_ensemble_log_likelihood = log_likelihood_from_predictions(bayes_predictions,

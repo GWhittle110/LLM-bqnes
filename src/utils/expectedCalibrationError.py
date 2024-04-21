@@ -21,7 +21,7 @@ def expected_calibration_error(model, dataset: Dataset, nbins: int = 10, batch_s
     with torch.no_grad():
         predictions = torch.cat([model(inputs) for inputs, targets in dataloader]).cpu().numpy()
 
-    return expected_calibration_error_from_predictions(predictions, dataset.targets.numpy(), nbins)
+    return expected_calibration_error_from_predictions(predictions, torch.tensor(dataset.targets).numpy(), nbins)
 
 
 def expected_calibration_error_from_predictions(predictions, targets, nbins: int = 10) -> float:

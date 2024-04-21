@@ -102,15 +102,15 @@ class AnthropicSearchSpaceConstructor(Anthropic):
                                if they are restart from task 2 with different features."
 
     def construct_search_space(self, models: list[callable], task: str, dataset: Dataset,
-                               predictions: DataFrame = None, reduction_factor: float = 1, nats: bool = None, _run=None
-                               ) -> [SearchSpace, np.ndarray]:
+                               predictions: DataFrame = None, reduction_factor: float = 1, nats_info: dict = None,
+                               _run=None) -> [SearchSpace, np.ndarray]:
         """
         :param models: list containing model objects
         :param task: str detailing the task eg "image classification"
         :param dataset: Training dataset for models
         :param predictions: Dataframe containing model predictions keyed on model name and targets
         :param reduction_factor: Factor to divide log likelihood values by (shrinks likelihoods towards 1)
-        :param nats: Whether we are using raw source code or NATS Bench Models
+        :param nats_info: Dict containing NATS Bench API, dataset name and architecture indexes
         :param _run: Sacred run object
         :return: SearchSpace object containing coordinates, models and dataset, and array of discrete dimensions
         """
@@ -121,7 +121,7 @@ class AnthropicSearchSpaceConstructor(Anthropic):
             dataset_info = f'Number of datapoints: {len(dataset)}, target mean: {dataset.targets.mean().item()}, \
                              target standard deviation: {dataset.targets.std().item()}'
 
-        if nats:
+        if nats_info is not None:
             source_code = [str(model) for model in models]
         else:
             source_code = [inspect.getsource(type(model)) for model in models]
@@ -129,7 +129,7 @@ class AnthropicSearchSpaceConstructor(Anthropic):
             [f"<source index={i}> {source} </source>" for i, source in enumerate(source_code)])
 
         message = {"role": "user", "content": f"Please analyse the following \
-        {'printed model architectures' if nats else 'source code'}: <models> {source_code_prompt} </models>\
+        {'printed model architectures' if nats_info is not None else 'source code'}: <models> {source_code_prompt} </models>\
                    These models will be used for {task}. The dataset information is: {dataset_info}. Then carry out \
                    your tasks detailed above."}
         response_message = self.messages.create(max_tokens=self.max_tokens, model=self.model, system=self.system_prompt,
@@ -141,10 +141,20 @@ class AnthropicSearchSpaceConstructor(Anthropic):
         discrete_dims = np.array([i for i in range(coords.shape[1]) if set(coords[:,i]).union({0., 1.}) == {0., 1.}])
         if len(discrete_dims) == 0:
             discrete_dims = None
+
+        # Remove dimensions which contain only one value
+        mask = np.array([len(set(coords[:, i])) > 1 for i in range(coords.shape[1])])
+        coords = coords[:, mask]
+
+        # Squash dimensions which have values outside the interval [0, 1] into this interval
+        coords = np.array([coords[:, i] / (max(np.max(coords[:, 0]), 1) - min(np.min(coords[:, 0]), 0))
+                           + min(np.min(coords[:, 0]), 0) for i in range(coords.shape[1])]).T
+
         if _run is not None:
             _run.info["claude_query"] = message
             _run.info["claude_response"] = response_message
             _run.info["coordinates"] = coords.tolist()
             _run.info["discrete_dims"] = discrete_dims.tolist() if discrete_dims is not None else None
-        search_space = SearchSpace(models, coords, dataset, predictions=predictions, reduction_factor=reduction_factor)
+        search_space = SearchSpace(models, coords, dataset, predictions=predictions, reduction_factor=reduction_factor,
+                                   nats_info=nats_info)
         return search_space, discrete_dims

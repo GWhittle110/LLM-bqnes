@@ -13,10 +13,11 @@ class Ensemble(torch.nn.Module):
     Standard ensemble deriving from Bayesian Quadrature
     """
 
-    def __init__(self, models, integrand: IntegrandModel):
+    def __init__(self, models, integrand: IntegrandModel, nats: bool = False):
         """
         :param models: Constituent models
         :param integrand: Integrand model from which the ensemble is derived
+        :param nats: Bool indicating whether NATS Bench is being used
         """
         super().__init__()
         self.models = models
@@ -24,6 +25,7 @@ class Ensemble(torch.nn.Module):
         self.likelihoods = integrand.surrogate.y.astype(np.float64)
         self.evidence = integrand.evidence
         self.weights = self.quad_weights * self.likelihoods / self.evidence
+        self.nats = nats
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
@@ -43,7 +45,10 @@ class Ensemble(torch.nn.Module):
         >>> print(ensemble(x1))
         >>> print(ensemble(x2))
         """
-        member_predictions = torch.stack([model(x) for model in self.models], -1)
+        if self.nats:
+            member_predictions = torch.stack([model(x)[1] for model, index in self.models], -1)
+        else:
+            member_predictions = torch.stack([model(x) for model in self.models], -1)
         return rebalance_probabilities(member_predictions @ self.weights)
 
     def forward_from_predictions(self, predictions_df: pd.DataFrame) -> torch.Tensor:
@@ -52,8 +57,12 @@ class Ensemble(torch.nn.Module):
         :param predictions_df: Dataset containing predictions of all possible ensemble models, keyed on model name
         :return: tensor of model predictions
         """
-        member_predictions = torch.stack([torch.tensor(predictions_df[type(model).__name__])
-                                          for model in self.models], -1)
+        if self.nats:
+            member_predictions = torch.stack([torch.tensor(predictions_df[index])
+                                              for model, index in self.models], -1)
+        else:
+            member_predictions = torch.stack([torch.tensor(predictions_df[type(model).__name__])
+                                              for model in self.models], -1)
         return rebalance_probabilities(member_predictions @ self.weights)
 
 
@@ -62,12 +71,13 @@ class SqEnsemble(Ensemble):
     Ensemble deriving from square root warped Bayesian Quadrature
     """
 
-    def __init__(self, models, integrand: SqIntegrandModel):
+    def __init__(self, models, integrand: SqIntegrandModel, nats: bool = False):
         """
         :param models: Constituent models
         :param integrand: Integrand from which ensemble is derived
+        :param nats: Bool indicating whether NATS Bench is being used
         """
-        super().__init__(models, integrand)
+        super().__init__(models, integrand, nats)
         self.weights = None
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -90,7 +100,10 @@ class SqEnsemble(Ensemble):
         >>> print(ensemble(x2))
 
         """
-        member_predictions = torch.stack([model(x) for model in self.models], -1)
+        if self.nats:
+            member_predictions = torch.stack([model(x)[1] for model, index in self.models], -1)
+        else:
+            member_predictions = torch.stack([model(x) for model in self.models], -1)
         numerator_integrand = member_predictions * self.likelihoods
         epsilon = 0.8 * torch.min(numerator_integrand, dim=-1).values
         z = torch.sqrt(2 * (numerator_integrand - epsilon.unsqueeze(-1)))
@@ -104,8 +117,12 @@ class SqEnsemble(Ensemble):
         :param predictions_df: Dataset containing predictions of all possible ensemble models, keyed on model name
         :return: tensor of model predictions
         """
-        member_predictions = torch.stack([torch.tensor(predictions_df[type(model).__name__])
-                                          for model in self.models], -1)
+        if self.nats:
+            member_predictions = torch.stack([torch.tensor(predictions_df[index])
+                                              for model, index in self.models], -1)
+        else:
+            member_predictions = torch.stack([torch.tensor(predictions_df[type(model).__name__])
+                                              for model in self.models], -1)
         numerator_integrand = member_predictions * self.likelihoods
         epsilon = 0.8 * torch.min(numerator_integrand, dim=-1).values
         z = torch.sqrt(2 * (numerator_integrand - epsilon.unsqueeze(-1)))
@@ -119,12 +136,13 @@ class LinSqEnsemble(Ensemble):
     Ensemble deriving from linearisation of square root warped Bayesian Quadrature
     """
 
-    def __init__(self, models, integrand: SqIntegrandModel):
+    def __init__(self, models, integrand: SqIntegrandModel, nats: bool = False):
         """
         :param models: Constituent models
         :param integrand: Integrand from which ensemble is derived
+        :param nats: Bool indicating whether NATS Bench is being used
         """
-        super().__init__(models, integrand)
+        super().__init__(models, integrand, nats)
         self.offset = (1 - self.quad_weights.sum()) / self.evidence
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -147,7 +165,10 @@ class LinSqEnsemble(Ensemble):
         >>> print(ensemble(x2))
 
         """
-        member_predictions = torch.stack([model(x) for model in self.models], -1)
+        if self.nats:
+            member_predictions = torch.stack([model(x)[1] for model, index in self.models], -1)
+        else:
+            member_predictions = torch.stack([model(x) for model in self.models], -1)
         numerator_integrand = member_predictions * self.likelihoods
         epsilon = 0.8 * torch.min(numerator_integrand, dim=-1).values
         ensemble_prediction = rebalance_probabilities(epsilon * self.offset + member_predictions @ self.weights)
@@ -159,8 +180,12 @@ class LinSqEnsemble(Ensemble):
         :param predictions_df: Dataset containing predictions of all possible ensemble models, keyed on model name
         :return: tensor of model predictions
         """
-        member_predictions = torch.stack([torch.tensor(predictions_df[type(model).__name__])
-                                          for model in self.models], -1)
+        if self.nats:
+            member_predictions = torch.stack([torch.tensor(predictions_df[index])
+                                              for model, index in self.models], -1)
+        else:
+            member_predictions = torch.stack([torch.tensor(predictions_df[type(model).__name__])
+                                              for model in self.models], -1)
         numerator_integrand = member_predictions * self.likelihoods
         epsilon = 0.8 * torch.min(numerator_integrand, dim=-1).values
         ensemble_prediction = rebalance_probabilities(epsilon * self.offset + member_predictions @ self.weights)
@@ -172,11 +197,12 @@ class DiagSqEnsemble(Ensemble):
     Ensemble using diagonal of quad weights from square root warped Bayesian Quadrature
     """
 
-    def __init__(self, models, integrand: SqIntegrandModel):
+    def __init__(self, models, integrand: SqIntegrandModel, nats: bool = False):
         """
         :param models: Constituent models
         :param integrand: Integrand from which the ensemble is derived. In this case the diag sq ensemble is initialised
         from an equivalent SqIntegrandModel, not a DiagSqIntegrandModel
+        :param nats: Bool indicating whether NATS Bench is being used
         """
         torch.nn.Module.__init__(self)
         self.models = models
@@ -184,6 +210,7 @@ class DiagSqEnsemble(Ensemble):
         self.likelihoods = integrand.surrogate.y
         self.evidence = self.quad_weights @ self.likelihoods
         self.weights = self.quad_weights * self.likelihoods / self.evidence
+        self.nats = nats
 
 
 class UniformEnsemble(Ensemble):
@@ -191,14 +218,16 @@ class UniformEnsemble(Ensemble):
     Ensemble using uniform weights
     """
 
-    def __init__(self, models):
+    def __init__(self, models, nats: bool = False):
         """
         Ensemble using uniform weights
         :param models: Constituent models
+        :param nats: Bool indicating whether NATS Bench is being used
         """
         torch.nn.Module.__init__(self)
         self.models = models
         self.weights = np.ones(len(models)) / len(models)
+        self.nats = nats
 
 
 class BayesEnsemble(Ensemble):
@@ -206,7 +235,13 @@ class BayesEnsemble(Ensemble):
     Ensemble using likelihoods as weights
     """
 
-    def __init__(self, models, integrand):
-        super().__init__(models, integrand)
+    def __init__(self, models, integrand, nats: bool = False):
+        """
+        :param models: Constituent models
+        :param integrand: Integrand from which the ensemble is derived. In this case the diag sq ensemble is initialised
+        from an equivalent SqIntegrandModel, not a DiagSqIntegrandModel
+        :param nats: Bool indicating whether NATS Bench is being used
+        """
+        super().__init__(models, integrand, nats)
         self.evidence = np.sum(self.likelihoods)
         self.weights = self.likelihoods / self.evidence

@@ -46,10 +46,10 @@ def predictions(directory: str, dataset: str, save: bool = True, batch_size: int
 
     train_df = pd.DataFrame(np.array(train_predictions).transpose((1, 0, 2)).tolist(),
                             columns=[type(model).__name__ for model in models])
-    train_df["Target"] = train_dataset.targets.numpy()
+    train_df["Target"] = torch.tensor(train_dataset.targets).numpy()
     test_df = pd.DataFrame(np.array(test_predictions).transpose((1, 0, 2)).tolist(),
                            columns=[type(model).__name__ for model in models])
-    test_df["Target"] = test_dataset.targets.numpy()
+    test_df["Target"] = torch.tensor(test_dataset.targets).numpy()
 
     if save:
         abs_path = os.path.join(git.Repo('.', search_parent_directories=True).working_tree_dir,
