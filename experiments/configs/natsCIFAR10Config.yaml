@@ -1,4 +1,5 @@
 candidate_directory: nats_cifar10
+repeats: 10
 dataset: cifar10
 examples: null
 from_predictions: true
@@ -9,7 +10,7 @@ integrand_models:
 - LinSqIntegrandModel
 kernels:
 - Matern52
-ll_reduction: 5000
+ll_reduction: 100
 log_amps: 0.0
 log_jitters: 0.0
 log_scales: -1.0

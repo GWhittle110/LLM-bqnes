@@ -1,4 +1,5 @@
 candidate_directory: simple
+repeats: 10
 dataset: logistic
 examples: null
 from_predictions: true

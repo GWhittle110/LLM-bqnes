@@ -1,5 +1,6 @@
 candidate_directory: mnist_basic
 dataset: mnist
+repeats: 2
 examples: null
 from_predictions: true
 integrand_models:
