@@ -7,7 +7,7 @@ import numpy as np
 from sklearn.metrics import log_loss, accuracy_score
 
 
-def SKTrain(model, train_dataset, test_dataset):
+def sk_train(model, train_dataset, test_dataset):
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=len(train_dataset), shuffle=True)
     _, (training_data, training_targets) = next(enumerate(train_loader))
 

@@ -12,6 +12,8 @@ def load_nats_state_dict(api, network, index: list, dataset: str):
     :param dataset: NATS Bench dataset
     :return: list of models
     """
-    params = api.get_net_param(index, dataset, None)
+    api.reload(None, index)
+    params = api.get_net_param(index, dataset, None, hp=200)
     network.load_state_dict(next(iter(params.values())))
+    api.clear_params(index)
     return network.eval()

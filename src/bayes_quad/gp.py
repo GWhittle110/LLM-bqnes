@@ -81,7 +81,7 @@ class GP:
             theta = self.theta
         return -self.build_gp(theta).log_probability(self.y)
 
-    def optimize_theta(self, La: float = 0.0001, Ls: float = 0., Lj: float = 0.0001):
+    def optimize_theta(self, La: float = 0.0001, Ls: float = 0.0001, Lj: float = 0.0001):
         """
         Optimize hyperparameters over current data
         :param La: weighting of regularisation term on log amplitude (keeps amplitude close to 1)

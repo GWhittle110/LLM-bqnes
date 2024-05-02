@@ -1,6 +1,8 @@
 candidate_directory: simple
 repeats: 10
+save_prompt: true
 dataset: logistic
+test_random: false
 examples: null
 from_predictions: true
 integrand_models:
@@ -16,7 +18,7 @@ min_det:
 - 1.0e-05
 n_acquire: 7
 nbins: 10
-optimize_init: false
+optimize_init: true
 search_space_only: true
 task: Classification
 test_batch_size: 1000

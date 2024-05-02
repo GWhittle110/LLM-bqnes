@@ -103,7 +103,7 @@ class AnthropicSearchSpaceConstructor(Anthropic):
 
     def construct_search_space(self, models: list[callable], task: str, dataset: Dataset,
                                predictions: DataFrame = None, reduction_factor: float = 1, nats_info: dict = None,
-                               _run=None) -> [SearchSpace, np.ndarray]:
+                               save_prompt: bool = False, _run=None) -> [SearchSpace, np.ndarray]:
         """
         :param models: list containing model objects
         :param task: str detailing the task eg "image classification"
@@ -111,12 +111,14 @@ class AnthropicSearchSpaceConstructor(Anthropic):
         :param predictions: Dataframe containing model predictions keyed on model name and targets
         :param reduction_factor: Factor to divide log likelihood values by (shrinks likelihoods towards 1)
         :param nats_info: Dict containing NATS Bench API, dataset name and architecture indexes
+        :param save_prompt: Whether to save the prompt and response to the _run.info dict
         :param _run: Sacred run object
         :return: SearchSpace object containing coordinates, models and dataset, and array of discrete dimensions
         """
 
         if "classification" in task.lower():
-            dataset_info = f'Number of datapoints: {len(dataset)}, number of output classes: {len(dataset.classes)}'
+            classes = np.unique(dataset.targets)
+            dataset_info = f'Number of datapoints: {len(dataset)}, number of output classes: {len(classes)}'
         else:
             dataset_info = f'Number of datapoints: {len(dataset)}, target mean: {dataset.targets.mean().item()}, \
                              target standard deviation: {dataset.targets.std().item()}'
@@ -125,6 +127,7 @@ class AnthropicSearchSpaceConstructor(Anthropic):
             source_code = [str(model) for model in models]
         else:
             source_code = [inspect.getsource(type(model)) for model in models]
+        n_models = len(source_code)
         source_code_prompt = "".join(
             [f"<source index={i}> {source} </source>" for i, source in enumerate(source_code)])
 
@@ -132,13 +135,15 @@ class AnthropicSearchSpaceConstructor(Anthropic):
         {'printed model architectures' if nats_info is not None else 'source code'}: <models> {source_code_prompt} </models>\
                    These models will be used for {task}. The dataset information is: {dataset_info}. Then carry out \
                    your tasks detailed above."}
+
         response_message = self.messages.create(max_tokens=self.max_tokens, model=self.model, system=self.system_prompt,
                                                 messages=self.examples+[message], temperature=0.)
         response = response_message.content[0].dict()["text"]
         print(response)
         coord_strings = re.findall('<coordinate index=[0-9]+>(.+?)</coordinate>', response, flags=re.DOTALL)
-        coords = np.array([[float(x) for x in re.findall('[0-9|.]+', coord)] for coord in coord_strings])
-        discrete_dims = np.array([i for i in range(coords.shape[1]) if set(coords[:,i]).union({0., 1.}) == {0., 1.}])
+        coords_list = [[float(x) for x in re.findall('[0-9|.]+', coord)] for coord in coord_strings]
+        coords = np.array(coords_list[-n_models:])
+        discrete_dims = np.array([i for i in range(coords.shape[1]) if set(coords[:, i]).union({0., 1.}) == {0., 1.}])
         if len(discrete_dims) == 0:
             discrete_dims = None
 
@@ -151,10 +156,11 @@ class AnthropicSearchSpaceConstructor(Anthropic):
                            + min(np.min(coords[:, 0]), 0) for i in range(coords.shape[1])]).T
 
         if _run is not None:
-            _run.info["claude_query"] = message
-            _run.info["claude_response"] = response_message
+            if save_prompt:
+                _run.info["claude_query"] = self.examples+[message]
+                _run.info["claude_response"] = response_message
             _run.info["coordinates"] = coords.tolist()
             _run.info["discrete_dims"] = discrete_dims.tolist() if discrete_dims is not None else None
         search_space = SearchSpace(models, coords, dataset, predictions=predictions, reduction_factor=reduction_factor,
-                                   nats_info=nats_info)
+                                   nats_info=nats_info, log_offset=-12971/reduction_factor-5)
         return search_space, discrete_dims

@@ -20,7 +20,7 @@ def load_nats_models(api, indexes: list, dataset: str) -> list:
     def load_single_model(index):
         config = api.get_net_config(index, dataset)
         network = get_cell_based_tiny_net(config)
-        return network
+        return network.eval()
 
     return [load_single_model(index) for index in indexes]
 

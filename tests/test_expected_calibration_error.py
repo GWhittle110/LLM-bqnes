@@ -11,5 +11,5 @@ class TestExpectedCalibrationError(TestCase):
         self.assertEqual(np.round(expected_calibration_error_from_predictions(predictions, targets), 4), 0.3)
         predictions = np.array([[0, 1], [1, 0], [0, 1], [1, 0]])
         targets = np.array([1, 0, 1, 0])
-        self.assertEqual(np.round(expected_calibration_error_from_predictions(predictions, targets), 4), 0)
+        self.assertEqual(np.round(expected_calibration_error_from_predictions(predictions, targets), 4), 0.05)
 

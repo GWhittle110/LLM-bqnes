@@ -16,5 +16,5 @@ class HardBound(nn.Module):
     def forward(self, x):
         boundary = self.boundary.to(x.device)
         bias = self.bias.to(x.device)
-        return 0.99 * torch.stack([((x - bias) @ boundary < 0), ((x - bias) @ boundary >= 0)]).T
+        return torch.stack([((x - bias) @ boundary < 0), ((x - bias) @ boundary >= 0)]).T
 

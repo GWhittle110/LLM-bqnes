@@ -32,6 +32,7 @@ def expected_calibration_error_from_predictions(predictions, targets, nbins: int
     :param nbins: Number of bins to calculate over
     :return: Log likelihood over dataset
     """
+    """
     bin_boundaries = np.linspace(0, 1, nbins+1)
     bin_lowers = bin_boundaries[:-1]
     bin_uppers = bin_boundaries[1:]
@@ -58,5 +59,27 @@ def expected_calibration_error_from_predictions(predictions, targets, nbins: int
             avg_confidence_in_bin = confidences[in_bin].mean()
             # calculate |acc(Bm) - conf(Bm)| * (|Bm|/n) for bin m and add to the total ECE
             ece += np.abs(avg_confidence_in_bin - accuracy_in_bin) * prob_in_bin
+    """
+    if not isinstance(predictions, torch.Tensor):
+        predictions = torch.tensor(predictions)
+    if not isinstance(targets, torch.Tensor):
+        targets = torch.tensor(targets)
+    prob_bin_width = 1 / nbins
+    bin_edges_left = np.arange(0, 1, prob_bin_width)
+    bin_centres = bin_edges_left + 0.5 * prob_bin_width
+    pred_probs, preds = torch.max(predictions, dim=1)
+    correct_preds = preds == targets
+    bin_inds = np.digitize(pred_probs.detach().numpy(), bin_edges_left) - 1
+    bin_accuracies = []
+    for i in range(len(bin_edges_left)):
+        mask = bin_inds == i
+        i_accuracy = correct_preds[mask].to(dtype=torch.float).mean()
+        bin_accuracies.append(i_accuracy.item())
+    bin_accuracies = np.array(bin_accuracies)
+    bin_histogram = np.bincount(bin_inds, minlength=len(bin_edges_left))
 
+    bin_accuracies = np.nan_to_num(bin_accuracies * bin_histogram)
+    bin_accuracies /= bin_histogram
+
+    ece = np.nansum(bin_histogram / predictions.shape[0] * np.abs(bin_accuracies - bin_centres))
     return ece

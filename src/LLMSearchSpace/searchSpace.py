@@ -64,7 +64,8 @@ class SearchSpace:
                 api = self.nats_info["api"]
                 nats_index = self.nats_info["nats_indexes"][index]
                 self.models[index] = load_nats_state_dict(api, model, nats_index, self.nats_info["dataset"])
-                ll = -1 * len(self.dataset) * api.get_more_info(nats_index, self.nats_info["dataset"])["train-loss"]
+                ll = -1 * len(self.dataset) * api.get_more_info(nats_index, self.nats_info["dataset"], hp=200)["train-loss"]
+                print(nats_index, ll)
             elif self.predictions is not None:
                 ll = log_likelihood_from_predictions(self.predictions[type(model).__name__], self.predictions["Target"])
             else:

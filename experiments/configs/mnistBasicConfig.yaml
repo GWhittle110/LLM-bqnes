@@ -1,6 +1,9 @@
 candidate_directory: mnist_basic
 dataset: mnist
-repeats: 2
+repeats: 10
+n_init: 6
+test_random: false
+save_prompt: true
 examples: null
 from_predictions: true
 integrand_models:
@@ -61,11 +64,11 @@ min_det:
 - 0.001
 n_acquire: 5
 nbins: 10
-optimize_init: false
+optimize_init: true
 search_space_only: false
 task: Image classification
 test_batch_size: 100
-test_uniform: true
-test_bayes: true
+test_uniform: false
+test_bayes: false
 theta_anisotropic: true
 train_batch_size: 100

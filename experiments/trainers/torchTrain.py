@@ -6,19 +6,20 @@ import torch.optim as optim
 import torch.nn.functional as F
 
 
-def torchTrain(model,
-               train_dataset,
-               test_dataset,
-               save_path,
-               n_epochs=3,
-               batch_size_train=64,
-               batch_size_test=100,
-               learning_rate=0.01,
-               momentum=0.5,
-               log_interval=10,
-               device=torch.device("cpu")):
+def torch_train(model,
+                train_dataset,
+                test_dataset,
+                save_path,
+                n_epochs=3,
+                batch_size_train=64,
+                batch_size_test=100,
+                learning_rate=0.01,
+                momentum=0.9,
+                gamma=0,
+                log_interval=10,
+                device=torch.device("cpu")):
     """
-    Simple training loop for MNIST dataset, saves optimal state
+    Simple training loop for input dataset, saves optimal state
     :param model: model to be trained
     :param save_path: name of file to save model to
     :param n_epochs: number of epochs to train for
@@ -26,6 +27,7 @@ def torchTrain(model,
     :param batch_size_test: testing batch size
     :param learning_rate: learning rate for SGD
     :param momentum: momentum for SGD
+    :param gamma: gamma for exponential learning rate scheduler
     :param log_interval: interval between logging training results
     :param device: device to train on
     :return: None
@@ -38,6 +40,8 @@ def torchTrain(model,
     test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size_test, shuffle=True)
 
     optimizer = optim.SGD(model.parameters(), lr=learning_rate, momentum=momentum)
+
+    scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=gamma)
 
     train_losses = []
     train_counter = []
@@ -80,5 +84,6 @@ def torchTrain(model,
 
     for epoch in range(1, n_epochs + 1):
         train(epoch)
+        scheduler.step()
         previous_loss = float('inf') if epoch == 1 else test_losses[epoch-2]
         val(previous_loss)

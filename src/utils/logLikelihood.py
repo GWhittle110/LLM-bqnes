@@ -5,6 +5,7 @@ Calculate log likelihood of model over dataset
 import torch
 from torch.nn import CrossEntropyLoss
 from torch.utils.data import DataLoader, Dataset
+import numpy as np
 
 
 def log_likelihood(model, dataset: Dataset, batch_size: int = 100) -> float:
@@ -31,6 +32,12 @@ def log_likelihood_from_predictions(predictions, targets) -> float:
     :param targets: Targets from dataset
     :return: Log likelihood over dataset
     """
-    loss = CrossEntropyLoss(reduction='sum')
-    ll = -loss(torch.tensor(predictions, requires_grad=False), torch.tensor(targets, requires_grad=False)).item()
+    # loss = CrossEntropyLoss(reduction='sum')
+    # ll = -loss(torch.tensor(predictions, requires_grad=False), torch.tensor(targets, requires_grad=False)).item()
+    if not isinstance(predictions, torch.Tensor):
+        predictions = torch.tensor(predictions)
+    if not isinstance(targets, torch.Tensor):
+        targets = torch.tensor(targets)
+    ll = torch.sum(torch.log(predictions[torch.arange(predictions.shape[0]), targets])).item()
+
     return ll

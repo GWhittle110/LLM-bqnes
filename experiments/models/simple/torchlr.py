@@ -5,7 +5,7 @@ Pytorch linear model
 import torch
 from torch import nn
 import torch.nn.functional as F
-from experiments.trainers.torchTrain import torchTrain
+from experiments.trainers.torchTrain import torch_train
 import experiments.datasets.logistic as dataset_module
 
 
@@ -29,4 +29,4 @@ class TorchLR(nn.Module):
 
 if __name__ == "__main__":
     model = TorchLR(trained=False)
-    torchTrain(model, train_dataset, test_dataset, "torchlr", device=torch.device("cuda:0"), n_epochs=3)
+    torch_train(model, train_dataset, test_dataset, "torchlr", device=torch.device("cuda:0"), n_epochs=3)

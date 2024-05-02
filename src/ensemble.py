@@ -1,7 +1,7 @@
 """
 Classes to handle ensemble of models
 """
-
+import numpy as np
 import pandas as pd
 import torch
 from src.bayes_quad.quadrature import *
@@ -78,6 +78,7 @@ class SqEnsemble(Ensemble):
         :param nats: Bool indicating whether NATS Bench is being used
         """
         super().__init__(models, integrand, nats)
+        self.likelihoods = integrand.surrogate.y_unwarped.astype(np.float64)
         self.weights = None
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -136,13 +137,14 @@ class LinSqEnsemble(Ensemble):
     Ensemble deriving from linearisation of square root warped Bayesian Quadrature
     """
 
-    def __init__(self, models, integrand: SqIntegrandModel, nats: bool = False):
+    def __init__(self, models, integrand: LinSqIntegrandModel, nats: bool = False):
         """
         :param models: Constituent models
         :param integrand: Integrand from which ensemble is derived
         :param nats: Bool indicating whether NATS Bench is being used
         """
         super().__init__(models, integrand, nats)
+        self.likelihoods = integrand.surrogate.y_unwarped.astype(np.float64)
         self.offset = (1 - self.quad_weights.sum()) / self.evidence
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -197,20 +199,15 @@ class DiagSqEnsemble(Ensemble):
     Ensemble using diagonal of quad weights from square root warped Bayesian Quadrature
     """
 
-    def __init__(self, models, integrand: SqIntegrandModel, nats: bool = False):
+    def __init__(self, models, integrand: DiagSqIntegrandModel, nats: bool = False):
         """
         :param models: Constituent models
-        :param integrand: Integrand from which the ensemble is derived. In this case the diag sq ensemble is initialised
-        from an equivalent SqIntegrandModel, not a DiagSqIntegrandModel
+        :param integrand: Integrand from which the ensemble is derived.
         :param nats: Bool indicating whether NATS Bench is being used
         """
-        torch.nn.Module.__init__(self)
-        self.models = models
-        self.quad_weights = integrand.quad_weights.diagonal() / integrand.quad_weights.trace()
-        self.likelihoods = integrand.surrogate.y
-        self.evidence = self.quad_weights @ self.likelihoods
+        super().__init__(models, integrand, nats)
+        self.likelihoods = integrand.surrogate.y_unwarped.astype(np.float64)
         self.weights = self.quad_weights * self.likelihoods / self.evidence
-        self.nats = nats
 
 
 class UniformEnsemble(Ensemble):
@@ -238,10 +235,11 @@ class BayesEnsemble(Ensemble):
     def __init__(self, models, integrand, nats: bool = False):
         """
         :param models: Constituent models
-        :param integrand: Integrand from which the ensemble is derived. In this case the diag sq ensemble is initialised
-        from an equivalent SqIntegrandModel, not a DiagSqIntegrandModel
+        :param integrand: Integrand from which the ensemble is derived
         :param nats: Bool indicating whether NATS Bench is being used
         """
         super().__init__(models, integrand, nats)
+        if "Sq" in type(integrand).__name__:
+            self.likelihoods = integrand.surrogate.y_unwarped.astype(np.float64)
         self.evidence = np.sum(self.likelihoods)
         self.weights = self.likelihoods / self.evidence

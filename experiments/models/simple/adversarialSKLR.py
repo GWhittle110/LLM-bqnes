@@ -6,7 +6,7 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 import sklearn.linear_model as lm
-from experiments.trainers.SKTrain import SKTrain
+from experiments.trainers.SKTrain import sk_train
 import experiments.datasets.logistic as dataset_module
 from pickle import dump, load
 
@@ -44,4 +44,4 @@ class AntiSKLR(nn.Module):
 
 if __name__ == "__main__":
     model = AntiSKLR(trained=False)
-    SKTrain(model, train_dataset, test_dataset)
+    sk_train(model, train_dataset, test_dataset)

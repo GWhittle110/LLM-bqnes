@@ -59,4 +59,3 @@ def predictions(directory: str, dataset: str, save: bool = True, batch_size: int
 
     return train_df, test_df
 
-
